@@ -8,12 +8,13 @@ import {
 interface LayoutProps {
   user: User;
   onLogout: () => void;
+  onGoHome: () => void;
   children: React.ReactNode;
   activePage: string;
   onNavigate: (page: string) => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activePage, onNavigate }) => {
+export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, children, activePage, onNavigate }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png";
 
@@ -61,10 +62,10 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <div className="md:hidden bg-femac-900 text-white p-4 flex justify-between items-center shadow-md border-b border-femac-yellow/30">
-        <div className="flex items-center space-x-3">
+        <button onClick={onGoHome} className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
           <img src={LOGO_URL} alt="Logo" className="h-8 w-8 object-contain" />
           <span className="font-extrabold text-xl tracking-tighter text-femac-yellow uppercase">FEMAC ACADEMY</span>
-        </div>
+        </button>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
           {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -76,11 +77,13 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         flex flex-col
       `}>
         <div className="p-6 border-b border-femac-700 flex flex-col items-start">
-          <img src={LOGO_URL} alt="FEMAC Crest" className="h-16 w-16 mb-4 object-contain filter drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
-          <h1 className="text-3xl font-black tracking-tighter text-femac-yellow uppercase leading-tight">
-            FEMAC<br/>ACADEMY
-          </h1>
-          <p className="text-[10px] text-femac-400 mt-2 uppercase tracking-[0.2em] font-bold">Portal Services</p>
+          <button onClick={onGoHome} className="group flex flex-col items-start w-full text-left">
+            <img src={LOGO_URL} alt="FEMAC Crest" className="h-16 w-16 mb-4 object-contain filter drop-shadow-[0_0_8px_rgba(250,204,21,0.3)] group-hover:scale-105 transition-transform" />
+            <h1 className="text-3xl font-black tracking-tighter text-femac-yellow uppercase leading-tight group-hover:text-white transition-colors">
+              FEMAC<br/>ACADEMY
+            </h1>
+            <p className="text-[10px] text-femac-400 mt-2 uppercase tracking-[0.2em] font-bold group-hover:text-femac-yellow transition-colors">Portal Services</p>
+          </button>
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">

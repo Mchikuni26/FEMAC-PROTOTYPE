@@ -1,12 +1,35 @@
-import { GradeRecord, GradeStatus, Assignment, FeeTransaction } from '../types';
-import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES } from '../constants';
+import { GradeRecord, GradeStatus, Assignment, FeeTransaction, Student } from '../types';
+import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES, MOCK_STUDENTS } from '../constants';
 
 // Simple in-memory store for prototype
 let gradesStore = [...MOCK_GRADES];
 let assignmentsStore = [...MOCK_ASSIGNMENTS];
 let feesStore = [...MOCK_FEES];
+let studentsStore = [...MOCK_STUDENTS];
 
 export const MockDB = {
+  // Students
+  getStudents: () => [...studentsStore],
+  
+  createStudent: (firstName: string, lastName: string, grade: number, parentId: string) => {
+    const id = `S-2026-${String(studentsStore.length + 1).padStart(3, '0')}`;
+    const newStudent: Student = { id, firstName, lastName, grade, parentId };
+    studentsStore.push(newStudent);
+    
+    // Auto-generate an initial billing record for the new applicant
+    const feeAmount = grade <= 7 ? 3500 : (grade <= 9 ? 4800 : 6200);
+    feesStore.push({
+      id: `f-init-${id}`,
+      studentId: id,
+      date: new Date().toISOString().split('T')[0],
+      description: 'Initial Admission & Term 1 Fees',
+      amount: feeAmount,
+      type: 'BILL'
+    });
+    
+    return newStudent;
+  },
+
   // Grades
   getGradesByClass: (classId: string) => {
     const assignments = assignmentsStore.filter(a => a.classId === classId).map(a => a.id);

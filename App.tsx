@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole } from './types';
 import { MOCK_USERS } from './constants';
+import { MockDB } from './services/mockDb';
 import { Layout } from './components/Layout';
 import { TeacherPortal } from './pages/TeacherPortal';
 import { ExamsPortal } from './pages/ExamsPortal';
@@ -14,7 +15,7 @@ import {
   Microscope, Languages, Calculator, FlaskConical, Globe2,
   FileEdit, UserPlus, CreditCard, Smartphone, Landmark, Copy,
   User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload,
-  Home, Lock, MessageCircle, Facebook
+  Home, Lock, MessageCircle, Facebook, Hash, Map, UserCheck
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -35,21 +36,12 @@ const App: React.FC = () => {
   const [isFillingForm, setIsFillingForm] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png"; 
+  // Form Field States
+  const [formFirstName, setFormFirstName] = useState('');
+  const [formLastName, setFormLastName] = useState('');
+  const [formGrade, setFormGrade] = useState('');
 
-  // Mapping of passwords for each teacher - Updated to use "Chikuni1" for all
-  const TEACHER_PASSWORDS: Record<string, string> = {
-    'U-TEA-G1': 'Chikuni1',
-    'U-TEA-G2': 'Chikuni1',
-    'U-TEA-G3': 'Chikuni1',
-    'U-TEA-G4': 'Chikuni1',
-    'U-TEA-G5': 'Chikuni1',
-    'U-TEA-G6': 'Chikuni1',
-    'U-TEA-G7': 'Chikuni1',
-    'U-TEA-F1': 'Chikuni1',
-    'U-TEA-G9': 'Chikuni1',
-    'U-TEA-G10': 'Chikuni1'
-  };
+  const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png"; 
 
   const handleRoleSelect = (role: UserRole) => {
     if (role === UserRole.TEACHER) {
@@ -59,7 +51,6 @@ const App: React.FC = () => {
       if (foundUser) {
         setUser(foundUser);
         setView('portal');
-        // Default page for parents is now results since Overview was removed
         setActivePage(role === UserRole.PARENT ? 'results' : 'dashboard');
       }
     }
@@ -77,6 +68,12 @@ const App: React.FC = () => {
 
   const handleTeacherLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const TEACHER_PASSWORDS: Record<string, string> = {
+      'U-TEA-G1': 'Chikuni1', 'U-TEA-G2': 'Chikuni1', 'U-TEA-G3': 'Chikuni1',
+      'U-TEA-G4': 'Chikuni1', 'U-TEA-G5': 'Chikuni1', 'U-TEA-G6': 'Chikuni1',
+      'U-TEA-G7': 'Chikuni1', 'U-TEA-F1': 'Chikuni1', 'U-TEA-G9': 'Chikuni1',
+      'U-TEA-G10': 'Chikuni1'
+    };
     if (pendingUser && password === TEACHER_PASSWORDS[pendingUser.id]) {
       setUser(pendingUser);
       setView('portal');
@@ -97,9 +94,20 @@ const App: React.FC = () => {
     setLoginStep('role');
   };
 
+  const handleGoHome = () => {
+    setView('website');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Persist to MockDB
+    MockDB.createStudent(formFirstName, formLastName, parseInt(formGrade), 'U-PAR-PROSPECT');
     setFormSubmitted(true);
+    // Reset fields for next application
+    setFormFirstName('');
+    setFormLastName('');
+    setFormGrade('');
   };
 
   const closeAdmissionRegistry = () => {
@@ -114,7 +122,6 @@ const App: React.FC = () => {
     return role.replace('_', ' ');
   };
 
-  // --- Website Landing Page Component ---
   const LandingPage = () => (
     <div className="min-h-screen bg-white relative">
       <div className="fixed inset-0 flex items-center justify-center opacity-[0.02] pointer-events-none z-0">
@@ -122,20 +129,20 @@ const App: React.FC = () => {
       </div>
 
       <nav className="fixed top-0 w-full bg-femac-900/95 backdrop-blur-md text-white z-50 shadow-lg px-6 py-4 flex justify-between items-center border-b border-femac-yellow/20">
-        <div className="flex items-center space-x-4">
+        <button onClick={handleGoHome} className="flex items-center space-x-4 hover:opacity-80 transition-opacity">
           <img src={LOGO_URL} alt="FEMAC Logo" className="h-12 w-12 object-contain" />
-          <div className="flex flex-col">
+          <div className="flex flex-col text-left">
             <span className="text-3xl font-black tracking-tighter text-femac-yellow leading-none uppercase">FEMAC ACADEMY</span>
             <span className="text-[11px] tracking-[0.25em] text-femac-300 font-black uppercase">Dedicated to Excellence</span>
           </div>
-        </div>
+        </button>
         <div className="hidden lg:flex space-x-8 text-xs font-black uppercase tracking-widest text-femac-100">
           <a href="#about" className="hover:text-femac-yellow transition-colors">About</a>
           <a href="#academic" className="hover:text-femac-yellow transition-colors">Academic</a>
           <a href="#admissions" className="hover:text-femac-yellow transition-colors">Admissions</a>
         </div>
-        <button onClick={() => setView('login')} className="bg-femac-yellow text-femac-900 px-8 py-2.5 rounded-full font-black text-sm hover:scale-105 transition-all shadow-xl flex items-center">
-          Portal Login <ChevronRight size={18} className="ml-1" />
+        <button onClick={() => setView(user ? 'portal' : 'login')} className="bg-femac-yellow text-femac-900 px-8 py-2.5 rounded-full font-black text-sm hover:scale-105 transition-all shadow-xl flex items-center">
+          {user ? 'Back to Portal' : 'Portal Login'} <ChevronRight size={18} className="ml-1" />
         </button>
       </nav>
 
@@ -360,19 +367,90 @@ const App: React.FC = () => {
                           <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in duration-500">
                              <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8"><CheckCircle2 size={56} /></div>
                              <h4 className="text-4xl font-black text-femac-900 uppercase tracking-tight mb-4">Submission Received!</h4>
-                             <p className="text-slate-500 font-medium max-w-md mx-auto mb-10">Application reference <span className="text-femac-900 font-black">#FA-2026-{Math.floor(Math.random() * 9000) + 1000}</span>.</p>
+                             <p className="text-slate-500 font-medium max-w-md mx-auto mb-10">Application reference <span className="text-femac-900 font-black">#FA-2026-REGT</span>. Your file has been sent to the Executive Operations Registry.</p>
                              <button onClick={closeAdmissionRegistry} className="px-10 py-4 bg-femac-900 text-white rounded-xl font-black uppercase tracking-widest">Close Admission Registry</button>
                           </div>
                         ) : (
-                          <form onSubmit={handleFormSubmit} className="space-y-12">
-                              <div className="space-y-6">
-                                <div className="flex items-center space-x-3 text-femac-900"><UserIcon size={20} className="text-femac-yellow" /><h5 className="font-black uppercase tracking-widest text-sm">Student Information</h5></div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  <input required type="text" placeholder="First Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-700" />
-                                  <input required type="text" placeholder="Last Name" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-700" />
+                          <form onSubmit={handleFormSubmit} className="space-y-16">
+                              <div className="space-y-8">
+                                <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
+                                  <UserIcon size={24} className="text-femac-900" />
+                                  <h5 className="font-black uppercase tracking-widest text-lg">Candidate Identity</h5>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Full First Name</label>
+                                    <input required type="text" value={formFirstName} onChange={(e) => setFormFirstName(e.target.value)} placeholder="e.g., Chipo" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Surname</label>
+                                    <input required type="text" value={formLastName} onChange={(e) => setFormLastName(e.target.value)} placeholder="e.g., Mulenga" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Date of Birth</label>
+                                    <input required type="date" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Grade Applied For</label>
+                                    <select required value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all appearance-none">
+                                      <option value="">Select Level...</option>
+                                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
+                                        <option key={g} value={g}>Grade {g}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
                               </div>
-                              <button type="submit" className="w-full bg-femac-yellow text-femac-900 py-6 rounded-2xl font-black uppercase tracking-[0.2em] text-lg shadow-2xl hover:bg-white border-2 border-transparent hover:border-femac-yellow transition-all transform active:scale-95">Submit Application Form</button>
+                              <div className="space-y-8">
+                                <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
+                                  <ShieldCheck size={24} className="text-femac-900" />
+                                  <h5 className="font-black uppercase tracking-widest text-lg">Guardian Registry</h5>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Primary Guardian Name</label>
+                                    <input required type="text" placeholder="Full Name" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Relationship</label>
+                                    <input required type="text" placeholder="e.g., Father" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Active Phone Line</label>
+                                    <div className="relative">
+                                      <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                      <input required type="tel" placeholder="09xx xxx xxx" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Email Correspondence</label>
+                                    <div className="relative">
+                                      <Mail size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                      <input required type="email" placeholder="name@domain.com" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    </div>
+                                  </div>
+                                  <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Residential Address</label>
+                                    <div className="relative">
+                                      <MapPin size={18} className="absolute left-5 top-6 text-slate-300" />
+                                      <textarea required rows={3} placeholder="Street name, Area, City" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all resize-none"></textarea>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="pt-10">
+                                <div className="flex items-start space-x-4 p-6 bg-slate-900 text-white rounded-[2rem] shadow-2xl mb-12">
+                                  <div className="shrink-0 bg-femac-yellow p-3 rounded-xl"><AlertCircle size={24} className="text-slate-900" /></div>
+                                  <div>
+                                    <p className="text-sm font-black uppercase tracking-widest text-femac-yellow mb-2">Legal Declaration</p>
+                                    <p className="text-[10px] font-medium leading-relaxed opacity-70 uppercase tracking-wider">I hereby declare that the information provided in this registry form is accurate and complete. Falsification of records results in immediate registry expulsion.</p>
+                                  </div>
+                                </div>
+                                <button type="submit" className="w-full bg-femac-900 text-white py-8 rounded-[2rem] font-black uppercase tracking-[0.3em] text-xl shadow-2xl hover:bg-white hover:text-femac-900 border-4 border-transparent hover:border-femac-900 transition-all transform active:scale-95 flex items-center justify-center space-x-4">
+                                  <span>Finalize Application</span>
+                                  <ChevronRight size={28} className="text-femac-yellow" />
+                                </button>
+                              </div>
                           </form>
                         )}
                       </div>
@@ -384,8 +462,6 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Footer */}
       <footer className="bg-femac-900 border-t border-white/5 py-16 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="flex flex-col items-start md:w-1/3">
@@ -408,13 +484,10 @@ const App: React.FC = () => {
     </div>
   );
 
-  // --- Login Screen View ---
   if (view === 'login') {
     const rolesToShow = [UserRole.PUPIL, UserRole.PARENT, UserRole.TEACHER, UserRole.EXAMS_OFFICE, UserRole.EXECUTIVE_ACCOUNTS];
-    // Specific list of teacher IDs we want to display for the grade selection
     const teacherUserIds = ['U-TEA-G1', 'U-TEA-G2', 'U-TEA-G3', 'U-TEA-G4', 'U-TEA-G5', 'U-TEA-G6', 'U-TEA-G7', 'U-TEA-F1'];
     const teacherUsers = MOCK_USERS.filter(u => teacherUserIds.includes(u.id));
-
     return (
       <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none">
@@ -432,7 +505,6 @@ const App: React.FC = () => {
                <p className="text-femac-300 text-lg font-black uppercase tracking-[0.4em] opacity-80">Portal Access</p>
              </div>
            </div>
-           
            <div className="md:w-1/2 p-16 flex flex-col justify-center bg-white/95 backdrop-blur-sm relative">
              {loginStep === 'role' ? (
                <>
@@ -513,7 +585,7 @@ const App: React.FC = () => {
       if (user.role === UserRole.EXECUTIVE_ACCOUNTS) return <ExecutiveAccountsPortal />;
       return <div className="p-10 text-center"><h2 className="text-3xl font-black text-slate-300 uppercase tracking-widest mt-20">Access Restricted</h2></div>;
     };
-    return <Layout user={user} onLogout={handleLogout} activePage={activePage} onNavigate={setActivePage}>{renderContent()}</Layout>;
+    return <Layout user={user} onLogout={handleLogout} onGoHome={handleGoHome} activePage={activePage} onNavigate={setActivePage}>{renderContent()}</Layout>;
   }
 
   return <LandingPage />;

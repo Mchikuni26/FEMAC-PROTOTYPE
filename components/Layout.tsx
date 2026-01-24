@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, BookOpen, GraduationCap, Users, DollarSign, Menu, X, LogOut, CheckCircle } from 'lucide-react';
+import { 
+  LayoutDashboard, BookOpen, GraduationCap, Users, DollarSign, Menu, X, LogOut, 
+  CheckCircle, TrendingUp, Briefcase, Mail, Phone, MessageCircle, Facebook, User as UserIcon 
+} from 'lucide-react';
 
 interface LayoutProps {
   user: User;
@@ -12,6 +15,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, activePage, onNavigate }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png";
 
   const getNavItems = (role: UserRole) => {
     switch (role) {
@@ -27,41 +31,56 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
         ];
       case UserRole.PARENT:
         return [
-          { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+          { id: 'results', label: 'Student Results', icon: GraduationCap },
           { id: 'fees', label: 'Fees Portal', icon: DollarSign },
-          { id: 'results', label: 'Child Results', icon: GraduationCap },
         ];
       case UserRole.PUPIL:
         return [
-          { id: 'dashboard', label: 'My Dashboard', icon: LayoutDashboard },
+          { id: 'dashboard', label: 'Student Center', icon: LayoutDashboard },
           { id: 'classes', label: 'My Classes', icon: BookOpen },
+        ];
+      case UserRole.EXECUTIVE_ACCOUNTS:
+        return [
+          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+          { id: 'financials', label: 'Financials', icon: DollarSign },
+          { id: 'staff', label: 'Staffing', icon: Briefcase },
+          { id: 'growth', label: 'Growth', icon: TrendingUp },
         ];
       default:
         return [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
     }
   };
 
+  const getRoleDisplayName = (role: UserRole) => {
+    if (role === UserRole.EXECUTIVE_ACCOUNTS) return 'EXECUTIVE/ACCOUNTS';
+    return role.replace('_', ' ');
+  };
+
   const navItems = getNavItems(user.role);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      {/* Mobile Header */}
-      <div className="md:hidden bg-femac-900 text-white p-4 flex justify-between items-center shadow-md">
-        <span className="font-bold text-lg tracking-wide">FAIMS</span>
+      <div className="md:hidden bg-femac-900 text-white p-4 flex justify-between items-center shadow-md border-b border-femac-yellow/30">
+        <div className="flex items-center space-x-3">
+          <img src={LOGO_URL} alt="Logo" className="h-8 w-8 object-contain" />
+          <span className="font-extrabold text-xl tracking-tighter text-femac-yellow uppercase">FEMAC ACADEMY</span>
+        </div>
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
           {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
 
-      {/* Sidebar */}
       <aside className={`
         fixed md:sticky top-0 z-50 h-screen w-64 bg-femac-900 text-white transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         flex flex-col
       `}>
-        <div className="p-6 border-b border-femac-700">
-          <h1 className="text-2xl font-bold tracking-wider text-femac-100">FAIMS</h1>
-          <p className="text-xs text-femac-400 mt-1">Integrated Management</p>
+        <div className="p-6 border-b border-femac-700 flex flex-col items-start">
+          <img src={LOGO_URL} alt="FEMAC Crest" className="h-16 w-16 mb-4 object-contain filter drop-shadow-[0_0_8px_rgba(250,204,21,0.3)]" />
+          <h1 className="text-3xl font-black tracking-tighter text-femac-yellow uppercase leading-tight">
+            FEMAC<br/>ACADEMY
+          </h1>
+          <p className="text-[10px] text-femac-400 mt-2 uppercase tracking-[0.2em] font-bold">Portal Services</p>
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -72,49 +91,53 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, children, active
                 onNavigate(item.id);
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all relative
                 ${activePage === item.id 
-                  ? 'bg-femac-700 text-white shadow-lg' 
+                  ? 'bg-femac-800 text-white shadow-lg' 
                   : 'text-femac-200 hover:bg-femac-800 hover:text-white'}`}
             >
-              <item.icon size={20} />
-              <span className="font-medium">{item.label}</span>
+              {activePage === item.id && (
+                <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-femac-yellow rounded-r-full"></div>
+              )}
+              <item.icon size={20} className={activePage === item.id ? 'text-femac-yellow' : ''} />
+              <span className="font-medium text-sm tracking-wide">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-femac-700 bg-femac-800">
+        <div className="p-4 border-t border-femac-700 bg-femac-800/50">
           <div className="flex items-center space-x-3 mb-4">
-            <img src={user.avatar} alt="Profile" className="w-10 h-10 rounded-full border-2 border-femac-500" />
+            <div className="bg-femac-700 w-10 h-10 rounded-full flex items-center justify-center border-2 border-femac-yellow shadow-md">
+              <UserIcon size={20} className="text-femac-yellow" />
+            </div>
             <div>
-              <p className="text-sm font-semibold text-white">{user.name}</p>
-              <p className="text-xs text-femac-300 capitalize">{user.role.replace('_', ' ').toLowerCase()}</p>
+              <p className="text-sm font-semibold text-white leading-none mb-1 uppercase tracking-tighter">FAIMS ACCESS</p>
+              <p className="text-[10px] text-femac-300 uppercase tracking-wider font-bold">{getRoleDisplayName(user.role)}</p>
             </div>
           </div>
           <button 
             onClick={onLogout}
-            className="w-full flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 text-white p-2 rounded-md text-sm transition-colors"
+            className="w-full flex items-center justify-center space-x-2 bg-red-600/10 hover:bg-red-600 border border-red-600/30 hover:border-red-600 text-red-500 hover:text-white p-2.5 rounded-lg text-xs font-bold transition-all"
           >
-            <LogOut size={16} />
+            <LogOut size={14} />
             <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen">
-        <div className="max-w-7xl mx-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen relative flex flex-col">
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-[0.015] pointer-events-none z-0">
+          <img src={LOGO_URL} alt="" className="w-[500px] h-[500px] object-contain" />
+        </div>
+        <div className="max-w-7xl mx-auto relative z-10 flex-1 w-full">
            {children}
         </div>
+        <footer className="mt-20 pt-8 border-t border-slate-200 relative z-10 max-w-7xl mx-auto w-full pb-8 text-center md:text-left">
+           <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300">FAIMS System Support • Zambia</p>
+        </footer>
       </main>
 
-      {/* Overlay for mobile */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      {isSidebarOpen && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden" onClick={() => setIsSidebarOpen(false)} />)}
     </div>
   );
 };

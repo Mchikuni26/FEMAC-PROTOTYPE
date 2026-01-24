@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { MOCK_CLASSES, MOCK_ASSIGNMENTS, MOCK_STUDENTS } from '../constants';
 import { MockDB } from '../services/mockDb';
-import { GradeRecord, GradeStatus } from '../types';
+import { GradeRecord, GradeStatus, User } from '../types';
 import { Save, Lock, Plus, AlertCircle } from 'lucide-react';
 
-export const TeacherPortal: React.FC = () => {
-  const [selectedClass, setSelectedClass] = useState(MOCK_CLASSES[0].id);
+interface TeacherPortalProps {
+  currentUser?: User;
+}
+
+export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => {
+  // Filter classes to only show those belonging to the logged-in teacher
+  const teacherClasses = MOCK_CLASSES.filter(c => c.teacherId === currentUser?.id);
+  
+  const [selectedClass, setSelectedClass] = useState(teacherClasses[0]?.id || '');
   const [grades, setGrades] = useState<GradeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const currentClass = MOCK_CLASSES.find(c => c.id === selectedClass);
-  const assignments = MOCK_ASSIGNMENTS.filter(a => a.classId === selectedClass);
-
   const refreshGrades = () => {
+    if (!selectedClass) return;
     setLoading(true);
-    // Simulate API Delay
     setTimeout(() => {
       setGrades(MockDB.getGradesByClass(selectedClass));
       setLoading(false);
@@ -24,14 +28,12 @@ export const TeacherPortal: React.FC = () => {
 
   useEffect(() => {
     refreshGrades();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClass]);
 
   const handleScoreChange = (gradeId: string, val: string) => {
     const numVal = parseInt(val);
     if (!isNaN(numVal)) {
       MockDB.updateGrade(gradeId, numVal);
-      // Optimistic update for UI
       setGrades(prev => prev.map(g => g.id === gradeId ? { ...g, score: numVal } : g));
     }
   };
@@ -45,120 +47,89 @@ export const TeacherPortal: React.FC = () => {
     }
   };
 
+  if (teacherClasses.length === 0) {
+    return (
+      <div className="p-10 text-center bg-white rounded-3xl border border-slate-100 shadow-sm">
+        <AlertCircle size={48} className="mx-auto text-slate-300 mb-4" />
+        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Classes Assigned</h3>
+        <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-2">Contact registry office for allocation.</p>
+      </div>
+    );
+  }
+
+  const assignments = MOCK_ASSIGNMENTS.filter(a => a.classId === selectedClass);
+  const currentClassInfo = teacherClasses.find(c => c.id === selectedClass);
+  // Only show students in the correct grade for this class
+  const classStudents = MOCK_STUDENTS.filter(s => s.grade === currentClassInfo?.gradeLevel);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-femac-900">Teacher Gradebook</h2>
-          <p className="text-slate-500">Manage assessments and input grades</p>
+          <h2 className="text-2xl font-bold text-femac-900 border-l-4 border-femac-yellow pl-3 uppercase tracking-tighter">Authorized Gradebook</h2>
+          <p className="text-slate-500 text-xs uppercase font-bold tracking-widest mt-1">Registry Access for {currentUser?.name}</p>
         </div>
-        
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
+          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Class:</span>
           <select 
             value={selectedClass} 
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="p-2 border border-slate-300 rounded-md bg-white text-slate-700 focus:ring-2 focus:ring-femac-500 outline-none"
+            className="p-3 border-2 border-slate-100 rounded-xl bg-white text-femac-900 font-black uppercase text-xs outline-none focus:border-femac-yellow transition-all"
           >
-            {MOCK_CLASSES.map(c => (
-              <option key={c.id} value={c.id}>{c.name} (Grade {c.gradeLevel})</option>
-            ))}
+            {teacherClasses.map(c => (<option key={c.id} value={c.id}>{c.name} (G{c.gradeLevel})</option>))}
           </select>
-          <button className="flex items-center space-x-2 bg-femac-600 text-white px-4 py-2 rounded-md hover:bg-femac-700">
-            <Plus size={18} />
-            <span className="hidden md:inline">New Assessment</span>
-          </button>
         </div>
       </div>
 
-      {saveSuccess && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-          Grades submitted successfully to the Exams Office.
-        </div>
-      )}
-
-      {loading ? (
-        <div className="p-8 text-center text-slate-500">Loading gradebook...</div>
-      ) : (
-        <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-slate-600">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b">
-                <tr>
-                  <th className="px-6 py-4 font-bold">Student Name</th>
-                  {assignments.map(a => (
-                    <th key={a.id} className="px-6 py-4 min-w-[150px]">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-femac-900">{a.title}</span>
-                        <span className="text-[10px] text-slate-500">{a.maxScore} pts • {a.type}</span>
-                        {/* Assignment Status Indicator */}
-                        {(() => {
-                           const sampleGrade = grades.find(g => g.assignmentId === a.id);
-                           const isSubmitted = sampleGrade?.status !== GradeStatus.DRAFT;
-                           return isSubmitted ? (
-                             <span className="mt-1 inline-flex items-center text-xs text-amber-600">
-                               <Lock size={10} className="mr-1" /> Locked
-                             </span>
-                           ) : (
-                             <button 
-                               onClick={() => handleSubmitGrades(a.id)}
-                               className="mt-1 text-xs text-blue-600 hover:underline flex items-center"
-                             >
-                               <Save size={10} className="mr-1" /> Submit
-                             </button>
-                           );
-                        })()}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MOCK_STUDENTS.map(student => (
-                  <tr key={student.id} className="bg-white border-b hover:bg-slate-50">
-                    <td className="px-6 py-4 font-medium text-femac-900">
-                      {student.lastName}, {student.firstName}
-                    </td>
-                    {assignments.map(a => {
-                      const grade = grades.find(g => g.studentId === student.id && g.assignmentId === a.id);
-                      const isLocked = grade?.status !== GradeStatus.DRAFT;
-                      
-                      return (
-                        <td key={a.id} className="px-6 py-4">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              max={a.maxScore}
-                              disabled={isLocked}
-                              value={grade?.score || 0}
-                              onChange={(e) => grade && handleScoreChange(grade.id, e.target.value)}
-                              className={`
-                                w-20 p-2 border rounded text-center font-mono
-                                ${isLocked ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white border-slate-300 focus:ring-2 focus:ring-femac-500'}
-                              `}
-                            />
-                            {isLocked && (
-                                <div className="absolute right-0 top-0 -mr-6 mt-3 text-slate-300">
-                                    <Lock size={14} />
-                                </div>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
+      <div className="bg-white shadow-sm rounded-[2rem] overflow-hidden border border-slate-100">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-slate-600">
+            <thead className="text-[10px] text-slate-700 uppercase bg-slate-50 border-b">
+              <tr>
+                <th className="px-10 py-5 font-black tracking-widest">Pupil Academic ID</th>
+                {assignments.map(a => (
+                  <th key={a.id} className="px-6 py-5 min-w-[200px]">
+                    <div className="flex flex-col">
+                      <span className="font-black text-femac-900 text-sm tracking-tight">{a.title}</span>
+                      <span className="text-[9px] text-slate-400 uppercase tracking-widest">{a.maxScore} pts • {a.type}</span>
+                      {(() => {
+                         const sampleGrade = grades.find(g => g.assignmentId === a.id);
+                         const isSubmitted = sampleGrade?.status !== GradeStatus.DRAFT;
+                         return isSubmitted ? (
+                           <span className="mt-2 inline-flex items-center text-[9px] font-black text-amber-600 uppercase tracking-widest bg-amber-50 px-2 py-1 rounded-lg w-fit"><Lock size={10} className="mr-1" /> Locked Registry</span>
+                         ) : (
+                           <button onClick={() => handleSubmitGrades(a.id)} className="mt-2 text-[9px] text-femac-900 bg-femac-yellow px-3 py-1 rounded-lg font-black uppercase tracking-widest flex items-center hover:bg-femac-800 hover:text-white transition-all w-fit shadow-md"><Save size={10} className="mr-1" /> Submit Data</button>
+                         );
+                      })()}
+                    </div>
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start space-x-3">
-        <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={20} />
-        <div className="text-sm text-blue-800">
-          <p className="font-semibold">Maker-Checker Protocol Active</p>
-          <p>Once you click "Submit" on a column, grades are locked and sent to the Exams Office for verification. You cannot edit them unless an Exam Officer rejects the submission.</p>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {classStudents.map(student => (
+                <tr key={student.id} className="bg-white group hover:bg-femac-50/30 transition-colors">
+                  <td className="px-10 py-6 font-black text-femac-900 tracking-tighter uppercase">{student.id}</td>
+                  {assignments.map(a => {
+                    const grade = grades.find(g => g.studentId === student.id && g.assignmentId === a.id);
+                    const isLocked = grade?.status !== GradeStatus.DRAFT;
+                    return (
+                      <td key={a.id} className="px-6 py-6">
+                        <div className="relative">
+                          <input
+                            type="number" min="0" max={a.maxScore} disabled={isLocked}
+                            value={grade?.score || 0}
+                            onChange={(e) => grade && handleScoreChange(grade.id, e.target.value)}
+                            className={`w-24 p-3 border-2 rounded-xl text-center font-mono font-bold text-lg ${isLocked ? 'bg-slate-100 text-slate-400 border-slate-100' : 'bg-white border-slate-100 focus:border-femac-yellow focus:ring-4 focus:ring-femac-yellow/10'}`}
+                          />
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

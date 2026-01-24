@@ -38,7 +38,7 @@ export const StudentPortal: React.FC = () => {
                         <FileText className="mr-2" /> <h3 className="font-bold text-lg">My Materials</h3>
                     </div>
                     <div className="space-y-3">
-                         {['Science Lab Manual.pdf', 'Math Homework Set 3.docx', 'School Rules 2024.pdf'].map((file, i) => (
+                         {['Science Lab Manual.pdf', 'Math Homework Set 3.docx', 'School Rules 2026.pdf'].map((file, i) => (
                              <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded border border-slate-100">
                                  <span className="text-sm text-slate-700">{file}</span>
                                  <button className="text-blue-600 text-xs font-semibold hover:underline">Download</button>

@@ -6,7 +6,7 @@ import {
 } from '../types';
 import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES, MOCK_STUDENTS, MOCK_CLASSES, MOCK_STAFF } from '../constants';
 
-// Simple in-memory store for prototype
+// Persist state in memory for the session
 let gradesStore = [...MOCK_GRADES];
 let assignmentsStore = [...MOCK_ASSIGNMENTS];
 let feesStore = [...MOCK_FEES];
@@ -15,7 +15,6 @@ let staffStore = [...MOCK_STAFF];
 let notificationsStore: PaymentNotification[] = [];
 let reportsStore: StudentReport[] = [];
 
-// Growth Tracking Data
 let historicalYearsStore: FinancialYearSummary[] = [
   { year: 2023, totalRevenue: 850000, totalExpenses: 420000, grossProfit: 850000, netProfit: 430000, totalSalaries: 380000, operationalCosts: 40000, studentCount: 180 },
   { year: 2024, totalRevenue: 1020000, totalExpenses: 510000, grossProfit: 1020000, netProfit: 510000, totalSalaries: 450000, operationalCosts: 60000, studentCount: 210 },
@@ -29,21 +28,17 @@ let institutionalExpenses: InstitutionalExpense[] = [
 ];
 
 export const MockDB = {
-  // Financial Growth Analytics
   getGrowthMetrics: () => {
     const currentYear = new Date().getFullYear();
     const verifiedPayments = feesStore.filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + Math.abs(curr.amount), 0);
     const activeStaff = staffStore.filter(s => s.contractStatus === 'ACTIVE');
     const monthlySalaries = activeStaff.reduce((acc, curr) => acc + curr.salary, 0);
-    
-    // Estimation for the year so far (Current month is simplified)
     const monthIndex = new Date().getMonth() + 1;
     const yearSalaries = monthlySalaries * monthIndex;
     const totalOps = institutionalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
-    
     const totalExpenses = yearSalaries + totalOps;
-    const grossProfit = verifiedPayments - totalOps; // Revenue minus operational costs
-    const netProfit = grossProfit - yearSalaries; // Gross minus salaries
+    const grossProfit = verifiedPayments - totalOps;
+    const netProfit = grossProfit - yearSalaries;
 
     return {
       current: {
@@ -74,30 +69,12 @@ export const MockDB = {
 
   archiveFinancialYear: () => {
     const metrics = MockDB.getGrowthMetrics();
-    const summary = metrics.current;
-    
-    // Check if already archived
-    if (historicalYearsStore.find(h => h.year === summary.year)) {
-      return;
-    }
-
-    historicalYearsStore.push(summary);
-    
+    historicalYearsStore.push(metrics.current);
     feesStore = [];
     institutionalExpenses = [];
   },
 
-  // Staff
-  getStaff: () => {
-    const today = new Date();
-    return staffStore.map(staff => {
-      const expiry = new Date(staff.contractExpiryDate);
-      if (staff.contractStatus === 'ACTIVE' && expiry < today) {
-        return { ...staff, contractStatus: 'EXPIRED' as const };
-      }
-      return staff;
-    });
-  },
+  getStaff: () => [...staffStore],
 
   renewContract: (staffId: string) => {
     const idx = staffStore.findIndex(s => s.id === staffId);
@@ -123,7 +100,6 @@ export const MockDB = {
     }
   },
 
-  // Students
   getStudents: () => [...studentsStore],
   getStudentById: (id: string) => studentsStore.find(s => s.id === id),
 
@@ -181,7 +157,6 @@ export const MockDB = {
     }
   },
 
-  // Reports
   saveReport: (report: StudentReport) => {
     const idx = reportsStore.findIndex(r => r.id === report.id);
     if (idx !== -1) {
@@ -192,97 +167,30 @@ export const MockDB = {
     return report;
   },
 
-  getReportsByStudent: (studentId: string) => {
-    return reportsStore.filter(r => r.studentId === studentId);
-  },
-
-  getReportsByGrade: (grade: number) => {
-    return reportsStore.filter(r => {
-      const student = studentsStore.find(s => s.id === r.studentId);
-      return student?.grade === grade;
-    });
-  },
+  getReportsByStudent: (studentId: string) => reportsStore.filter(r => r.studentId === studentId),
+  getReportsByGrade: (grade: number) => reportsStore.filter(r => {
+    const student = studentsStore.find(s => s.id === r.studentId);
+    return student?.grade === grade;
+  }),
 
   updateReportStatus: (reportId: string, status: GradeStatus) => {
     const idx = reportsStore.findIndex(r => r.id === reportId);
-    if (idx !== -1) {
-      reportsStore[idx] = { ...reportsStore[idx], status };
-    }
+    if (idx !== -1) reportsStore[idx] = { ...reportsStore[idx], status };
   },
 
   updateReportStatusBatch: (grade: number, type: AssessmentType, status: GradeStatus) => {
     reportsStore = reportsStore.map(r => {
       const student = studentsStore.find(s => s.id === r.studentId);
-      if (student?.grade === grade && r.type === type) {
-        return { ...r, status };
-      }
+      if (student?.grade === grade && r.type === type) return { ...r, status };
       return r;
     });
   },
 
-  // Legacy Grades
-  getGradesByClass: (classId: string) => {
-    const assignments = assignmentsStore.filter(a => a.classId === classId).map(a => a.id);
-    return gradesStore.filter(g => assignments.includes(g.assignmentId));
-  },
-
-  getGradesByStudent: (studentId: string) => {
-    return gradesStore.filter(g => g.studentId === studentId);
-  },
-
-  updateGrade: (gradeId: string, score: number) => {
-    const idx = gradesStore.findIndex(g => g.id === gradeId);
-    if (idx !== -1) {
-      gradesStore[idx] = { ...gradesStore[idx], score };
-    }
-  },
-
-  updateGradeStatusBatch: (assignmentId: string, newStatus: GradeStatus) => {
-    gradesStore = gradesStore.map(g => {
-      if (g.assignmentId === assignmentId) {
-        return { ...g, status: newStatus };
-      }
-      return g;
-    });
-  },
-
-  createAssignment: (classId: string, title: string, maxScore: number, type: AssessmentType = 'Mid-week Assessment') => {
-    const newId = `a${Date.now()}`;
-    const newAssignment: Assignment = {
-      id: newId,
-      classId,
-      title,
-      maxScore,
-      type,
-      date: new Date().toISOString().split('T')[0]
-    };
-    assignmentsStore.push(newAssignment);
-
-    const classInfo = MOCK_CLASSES.find(c => c.id === classId);
-    if (classInfo) {
-      const classStudents = studentsStore.filter(s => s.grade === classInfo.gradeLevel && s.applicationStatus === ApplicationStatus.ACCEPTED);
-      classStudents.forEach(s => {
-        gradesStore.push({
-          id: `g-${newId}-${s.id}`,
-          assignmentId: newId,
-          studentId: s.id,
-          score: 0,
-          status: GradeStatus.DRAFT
-        });
-      });
-    }
-
-    return newAssignment;
-  },
-
-  // Fees
-  getFeesByStudent: (studentId: string) => {
-    return feesStore.filter(f => f.studentId === studentId);
-  },
-
+  getFeesByStudent: (studentId: string) => feesStore.filter(f => f.studentId === studentId),
+  
   makePayment: (studentId: string, amount: number) => {
     const newTxn: FeeTransaction = {
-      id: `txn${Date.now()}`,
+      id: `txn-${Date.now()}`,
       studentId,
       date: new Date().toISOString().split('T')[0],
       description: 'Institutional Fee Settlement',
@@ -293,13 +201,12 @@ export const MockDB = {
     return newTxn;
   },
 
-  // Notifications
   sendPaymentNotification: (notification: Omit<PaymentNotification, 'id' | 'status' | 'timestamp'>) => {
     const newNotif: PaymentNotification = {
       ...notification,
       id: `notif-${Date.now()}`,
       status: 'PENDING',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toLocaleTimeString()
     };
     notificationsStore.push(newNotif);
     return newNotif;
@@ -311,8 +218,9 @@ export const MockDB = {
     const notifIdx = notificationsStore.findIndex(n => n.id === notifId);
     if (notifIdx !== -1) {
       notificationsStore[notifIdx].status = 'VERIFIED';
-      const studentId = notificationsStore[notifIdx].studentId;
-      MockDB.unlockResults(studentId);
+      MockDB.unlockResults(notificationsStore[notifIdx].studentId);
     }
-  }
+  },
+
+  getGradesByStudent: (studentId: string) => gradesStore.filter(g => g.studentId === studentId)
 };

@@ -1,214 +1,243 @@
+
 import React, { useState, useEffect } from 'react';
-import { MOCK_CLASSES, MOCK_ASSIGNMENTS, MOCK_STUDENTS } from '../constants';
+import { MOCK_CLASSES } from '../constants';
 import { MockDB } from '../services/mockDb';
-import { GradeRecord, GradeStatus, Student } from '../types';
-// Import Calendar and other missing icons from lucide-react
+import { GradeStatus, StudentReport, AssessmentType } from '../types';
 import { 
   CheckCircle, XCircle, Globe, Filter, ExternalLink, Eye, 
-  ChevronDown, ChevronUp, UserCheck, ShieldCheck, Search, 
-  Calendar, FileText, AlertCircle 
+  ChevronDown, ShieldCheck, Calendar, FileText, AlertCircle, 
+  Users, TrendingUp, Info, Search, LayoutGrid, Award
 } from 'lucide-react';
 
 export const ExamsPortal: React.FC = () => {
-  const [grades, setGrades] = useState<GradeRecord[]>([]);
-  const [activeClassId, setActiveClassId] = useState(MOCK_CLASSES[0].id);
-  const [expandedAssignmentId, setExpandedAssignmentId] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [reports, setReports] = useState<StudentReport[]>([]);
+  const [activeGrade, setActiveGrade] = useState(1);
+  const [activeType, setActiveType] = useState<AssessmentType>('End-of-Term');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(refreshCounter());
+
+  function refreshCounter() {
+    return Math.floor(Math.random() * 100000);
+  }
 
   useEffect(() => {
-    setGrades(MockDB.getGradesByClass(activeClassId));
-  }, [activeClassId, refreshKey]);
+    setReports(MockDB.getReportsByGrade(activeGrade).filter(r => r.type === activeType));
+  }, [activeGrade, activeType, refreshKey]);
 
-  const currentClass = MOCK_CLASSES.find(c => c.id === activeClassId);
-  const assignments = MOCK_ASSIGNMENTS.filter(a => a.classId === activeClassId);
-
-  const handleStatusChange = (assignmentId: string, newStatus: GradeStatus) => {
-    const statusMsg = newStatus === GradeStatus.PUBLISHED ? "PUBLISH" : (newStatus === GradeStatus.APPROVED ? "APPROVE" : "REJECT");
-    if (confirm(`Authorize registry to ${statusMsg} all results for this assignment?`)) {
-      MockDB.updateGradeStatusBatch(assignmentId, newStatus);
-      setRefreshKey(prev => prev + 1);
+  const handleStatusChangeBatch = (status: GradeStatus) => {
+    const msg = status === GradeStatus.PUBLISHED ? "PUBLISH" : "APPROVE";
+    if (confirm(`Authorize registry to ${msg} all reports for Grade ${activeGrade} (${activeType})?`)) {
+      MockDB.updateReportStatusBatch(activeGrade, activeType, status);
+      setRefreshKey(refreshCounter());
     }
+  };
+
+  const handleStatusChangeSingle = (id: string, status: GradeStatus) => {
+    MockDB.updateReportStatus(id, status);
+    setRefreshKey(refreshCounter());
   };
 
   const getStatusBadge = (status: GradeStatus) => {
     switch (status) {
-      case GradeStatus.DRAFT: return <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-slate-200">Teacher Draft</span>;
-      case GradeStatus.SUBMITTED: return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-amber-200">Awaiting Validation</span>;
-      case GradeStatus.APPROVED: return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-200">Internal Approved</span>;
-      case GradeStatus.PUBLISHED: return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border border-green-200">Live on Portals</span>;
+      case GradeStatus.DRAFT: return <span className="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Draft</span>;
+      case GradeStatus.SUBMITTED: return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">Awaiting Validation</span>;
+      case GradeStatus.APPROVED: return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Approved</span>;
+      case GradeStatus.PUBLISHED: return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Published</span>;
     }
   };
 
-  // Helper to group classes by grade for the dropdown
-  const gradesLevels = Array.from(new Set(MOCK_CLASSES.map(c => c.gradeLevel))).sort((a, b) => a - b);
+  const filteredReports = reports.filter(report => {
+    const student = MockDB.getStudentById(report.studentId);
+    const fullName = `${student?.firstName} ${student?.lastName}`.toLowerCase();
+    const id = report.studentId.toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return fullName.includes(search) || id.includes(search);
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      {/* Official Registry Header */}
-      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center space-x-5">
-          <div className="bg-femac-900 p-5 rounded-[2rem] shadow-xl shadow-femac-900/20">
-            <ShieldCheck className="text-femac-yellow" size={32} />
+      {/* Header with ECZ Portal Link */}
+      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-8">
+        <div className="flex items-center space-x-6">
+          <div className="bg-femac-900 p-5 rounded-[2.5rem] shadow-2xl shadow-femac-900/20 relative">
+            <ShieldCheck className="text-femac-yellow" size={36} />
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
           </div>
           <div>
-            <h2 className="text-3xl font-black text-femac-900 tracking-tighter uppercase leading-none">Exams Validation Registry</h2>
-            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-2 flex items-center">
-              <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span> Authorized Portal Integrity Node
-            </p>
+            <h2 className="text-4xl font-black text-femac-900 tracking-tighter uppercase leading-none">Exams Validation Terminal</h2>
+            <div className="flex items-center space-x-3 mt-3">
+              <span className="bg-femac-50 text-femac-800 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-femac-100">Official Internal Registry</span>
+              <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest flex items-center">
+                Node ID: FAIMS-EXM-001
+              </p>
+            </div>
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-          <div className="relative group">
-            <select 
-              value={activeClassId} 
-              onChange={(e) => {
-                setActiveClassId(e.target.value);
-                setExpandedAssignmentId(null);
-              }}
-              className="w-full md:w-64 appearance-none p-4 pr-12 border-2 border-slate-100 rounded-2xl bg-slate-50 text-femac-900 font-black uppercase text-xs focus:border-femac-yellow outline-none transition-all shadow-sm cursor-pointer"
-            >
-              {gradesLevels.map(gl => (
-                <optgroup key={gl} label={`GRADE ${gl}`} className="font-bold text-slate-400">
-                  {MOCK_CLASSES.filter(c => c.gradeLevel === gl).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-          </div>
-          
+        <div className="flex flex-col sm:flex-row items-center gap-4">
           <a 
             href="https://portal.ecz.org.zm/" 
             target="_blank" 
-            rel="noopener noreferrer"
-            className="bg-femac-yellow text-femac-900 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center hover:bg-femac-900 hover:text-white transition-all transform active:scale-95 shadow-lg shadow-femac-yellow/20"
+            rel="noopener noreferrer" 
+            className="flex items-center space-x-3 bg-femac-yellow text-femac-900 px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-femac-900 hover:text-white transition-all shadow-xl group active:scale-95"
           >
-            ECZ Registry <ExternalLink size={14} className="ml-2" />
+            <Award size={18} className="group-hover:rotate-12 transition-transform" />
+            <span>ECZ Web Portal</span>
+            <ExternalLink size={14} className="opacity-50" />
           </a>
+          <div className="hidden md:block w-px h-12 bg-slate-100"></div>
+          <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+             <div className="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 flex items-center">
+               <Info size={12} className="mr-2" /> Validation Sync
+             </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {assignments.length > 0 ? (
-          assignments.map(assignment => {
-            const assignmentGrades = grades.filter(g => g.assignmentId === assignment.id);
-            if (assignmentGrades.length === 0) return null;
-            const currentStatus = assignmentGrades[0].status;
-            const isExpanded = expandedAssignmentId === assignment.id;
+      {/* Control Panel: Filters & Search */}
+      <div className="bg-white p-10 rounded-[4rem] border border-slate-100 shadow-sm space-y-8">
+        <div className="flex flex-col lg:flex-row gap-8 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full lg:w-1/2">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Evaluation Category</label>
+              <div className="relative">
+                <select 
+                  value={activeType}
+                  onChange={(e) => setActiveType(e.target.value as AssessmentType)}
+                  className="w-full p-5 border-2 border-slate-100 rounded-2xl bg-slate-50 text-femac-900 font-black uppercase text-xs appearance-none focus:border-femac-yellow transition-all"
+                >
+                  <option value="End-of-Term">End-of-Term Reports</option>
+                  <option value="Mid-Term">Mid-Term Reports</option>
+                  <option value="Mid-week Assessment">Mid-week Reports</option>
+                </select>
+                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Grade Review Level</label>
+              <div className="relative">
+                <select 
+                  value={activeGrade} 
+                  onChange={(e) => setActiveGrade(parseInt(e.target.value))}
+                  className="w-full p-5 border-2 border-slate-100 rounded-2xl bg-slate-50 text-femac-900 font-black uppercase text-xs appearance-none focus:border-femac-yellow transition-all"
+                >
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => <option key={g} value={g}>Grade {g} Registry</option>)}
+                </select>
+                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+              </div>
+            </div>
+          </div>
 
+          <div className="w-full lg:w-1/2 space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 flex items-center">
+              <Search size={12} className="mr-2 text-femac-yellow" /> Pupil Identification Search
+            </label>
+            <div className="relative">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Identification String (Name, ID, or Surname)..."
+                className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 uppercase text-xs focus:border-femac-yellow placeholder:text-slate-300 shadow-inner"
+              />
+            </div>
+          </div>
+        </div>
+
+        {reports.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-4 pt-4 border-t border-slate-50">
+            <button onClick={() => handleStatusChangeBatch(GradeStatus.APPROVED)} className="bg-femac-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-femac-800 transition-all flex items-center shadow-lg active:scale-95">
+              <CheckCircle size={16} className="mr-2 text-femac-yellow" /> Authorize Grade {activeGrade}
+            </button>
+            <button onClick={() => handleStatusChangeBatch(GradeStatus.PUBLISHED)} className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-700 transition-all flex items-center shadow-lg active:scale-95">
+              <Globe size={16} className="mr-2" /> Publish Verified Registry
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Reports Matrix */}
+      <div className="grid grid-cols-1 gap-6">
+        {filteredReports.length > 0 ? (
+          filteredReports.map(report => {
+            const student = MockDB.getStudentById(report.studentId);
+            const isExpanded = expandedReportId === report.id;
             return (
-              <div key={assignment.id} className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-femac-yellow/30">
-                {/* Assignment Header Card */}
+              <div key={report.id} className="bg-white rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl transition-all group">
                 <div className="p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-                  <div className="flex-1 flex items-start space-x-6">
-                    <div className={`p-5 rounded-[1.5rem] shadow-lg ${currentStatus === GradeStatus.PUBLISHED ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-femac-900'}`}>
-                      {currentStatus === GradeStatus.PUBLISHED ? <Globe size={28} /> : <FileText size={28} />}
+                  <div className="flex items-start space-x-6">
+                    <div className="bg-slate-50 p-6 rounded-[1.5rem] text-femac-900 group-hover:bg-femac-yellow transition-colors">
+                      <FileText size={32} />
                     </div>
                     <div>
                       <div className="flex items-center space-x-3 mb-2">
-                        {getStatusBadge(currentStatus)}
-                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">UID: {assignment.id}</span>
+                        {getStatusBadge(report.status)}
+                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Candidate ID: {report.studentId}</span>
                       </div>
-                      <h3 className="text-2xl font-black text-femac-900 uppercase tracking-tighter leading-tight">{assignment.title}</h3>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center"><Calendar size={12} className="mr-1" /> {assignment.date}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center"><UserCheck size={12} className="mr-1" /> {assignmentGrades.length} Registered Pupils</p>
+                      <h3 className="text-3xl font-black text-femac-900 uppercase tracking-tighter leading-none">{student?.firstName} {student?.lastName}</h3>
+                      <div className="flex items-center space-x-4 mt-3">
+                        <span className="text-[10px] font-black uppercase text-femac-800 bg-femac-50 px-3 py-1 rounded-lg">Score: {report.overallPercentage}%</span>
+                        <span className="text-[10px] font-black uppercase text-slate-400">Node Rank: {report.overallGrade}</span>
                       </div>
                     </div>
                   </div>
-
                   <div className="flex flex-wrap items-center gap-4">
                     <button 
-                      onClick={() => setExpandedAssignmentId(isExpanded ? null : assignment.id)}
-                      className={`flex items-center space-x-2 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isExpanded ? 'bg-femac-900 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                      onClick={() => setExpandedReportId(isExpanded ? null : report.id)}
+                      className={`px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center transition-all ${isExpanded ? 'bg-femac-900 text-white shadow-2xl' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
                     >
-                      <Eye size={16} className={isExpanded ? 'text-femac-yellow' : ''} /> 
-                      <span>{isExpanded ? 'Close Detailed Review' : 'Review Pupil Scores'}</span>
+                      <Eye size={16} className="mr-2" /> {isExpanded ? 'Close Detail' : 'Identify Results'}
                     </button>
-
-                    {/* Action Block */}
-                    <div className="flex gap-2">
-                      {currentStatus === GradeStatus.SUBMITTED && (
-                        <>
-                          <button 
-                            onClick={() => handleStatusChange(assignment.id, GradeStatus.APPROVED)}
-                            className="bg-femac-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-femac-800 transition-all shadow-lg flex items-center"
-                          >
-                            <CheckCircle size={16} className="mr-2 text-femac-yellow" /> Approve
-                          </button>
-                          <button 
-                            onClick={() => handleStatusChange(assignment.id, GradeStatus.DRAFT)}
-                            className="bg-red-50 text-red-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-100 transition-all flex items-center"
-                          >
-                            <XCircle size={16} className="mr-2" /> Reject
-                          </button>
-                        </>
-                      )}
-
-                      {currentStatus === GradeStatus.APPROVED && (
-                        <button 
-                          onClick={() => handleStatusChange(assignment.id, GradeStatus.PUBLISHED)}
-                          className="bg-green-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-green-700 transition-all shadow-lg flex items-center animate-pulse"
-                        >
-                          <Globe size={16} className="mr-2" /> Publish Results
-                        </button>
-                      )}
-
-                      {currentStatus === GradeStatus.PUBLISHED && (
-                        <div className="px-6 py-4 bg-green-50 text-green-600 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center border border-green-100">
-                          <CheckCircle size={16} className="mr-2" /> Live In Portals
-                        </div>
-                      )}
-                    </div>
+                    {report.status === GradeStatus.SUBMITTED && (
+                       <button onClick={() => handleStatusChangeSingle(report.id, GradeStatus.APPROVED)} className="bg-femac-900 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl hover:bg-femac-yellow hover:text-femac-900 transition-all active:scale-95">Verify Pupil</button>
+                    )}
                   </div>
                 </div>
 
-                {/* Expanded Detailed Pupil Review Table */}
                 {isExpanded && (
-                  <div className="bg-slate-50 border-t border-slate-100 p-8 animate-in slide-in-from-top duration-300">
-                    <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-inner">
-                      <div className="p-6 border-b border-slate-100 bg-white flex items-center justify-between">
-                        <h4 className="text-sm font-black text-femac-900 uppercase tracking-widest">Pupil Score Registry Review</h4>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Weight: {assignment.maxScore} pts</span>
-                      </div>
+                  <div className="bg-slate-50 p-10 border-t border-slate-100 animate-in slide-in-from-top duration-500">
+                    <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl">
                       <table className="w-full text-left">
-                        <thead className="bg-slate-50/50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                        <thead className="bg-slate-900 text-[10px] font-black uppercase tracking-widest text-femac-400">
                           <tr>
-                            <th className="px-8 py-4">Pupil Academic ID</th>
-                            <th className="px-8 py-4">Full Name</th>
-                            <th className="px-8 py-4 text-center">Score Output</th>
-                            <th className="px-8 py-4 text-center">Percentage</th>
-                            <th className="px-8 py-4">Remarks</th>
+                            <th className="px-10 py-6">Aggregated Subject Registry</th>
+                            <th className="px-10 py-6 text-center">Master Score</th>
+                            <th className="px-10 py-6 text-center">Pct (%)</th>
+                            <th className="px-10 py-6 text-right">Identifier</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {assignmentGrades.map(grade => {
-                            const student = MOCK_STUDENTS.find(s => s.id === grade.studentId);
-                            const pct = Math.round((grade.score / assignment.maxScore) * 100);
-                            return (
-                              <tr key={grade.id} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="px-8 py-4 font-black text-femac-900 uppercase text-xs tracking-tighter">{grade.studentId}</td>
-                                <td className="px-8 py-4 font-bold text-slate-600 uppercase text-[10px]">{student ? `${student.firstName} ${student.lastName}` : 'N/A'}</td>
-                                <td className="px-8 py-4 text-center font-mono font-black text-slate-800 text-sm">{grade.score} / {assignment.maxScore}</td>
-                                <td className="px-8 py-4 text-center">
-                                  <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${pct >= 50 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                                    {pct}%
-                                  </span>
-                                </td>
-                                <td className="px-8 py-4 italic text-slate-400 text-xs font-medium">{grade.comment || 'Official Registry Record'}</td>
-                              </tr>
-                            );
-                          })}
+                          {report.subjects.map((sub, sIdx) => (
+                            <tr key={sIdx} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-10 py-5 text-sm font-black text-femac-900 uppercase tracking-tight">{sub.subjectName}</td>
+                              <td className="px-10 py-5 text-center font-mono font-black text-sm">{sub.score} <span className="text-slate-300 font-bold">/</span> {sub.maxScore}</td>
+                              <td className="px-10 py-5 text-center font-black text-xs">
+                                <span className={`px-4 py-2 rounded-xl ${sub.percentage >= 50 ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                  {sub.percentage}%
+                                </span>
+                              </td>
+                              <td className="px-10 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest">{sub.grade}</td>
+                            </tr>
+                          ))}
                         </tbody>
+                        <tfoot className="bg-femac-900 text-white font-black uppercase text-sm">
+                          <tr>
+                            <td className="px-10 py-8 text-lg tracking-tighter">Terminal Output Totals</td>
+                            <td className="px-10 py-8 text-center text-3xl text-femac-yellow">{report.totalScore} <span className="text-white/20 text-xl font-bold">/</span> {report.maxTotalScore}</td>
+                            <td className="px-10 py-8 text-center text-3xl">{report.overallPercentage}%</td>
+                            <td className="px-10 py-8 text-right text-lg tracking-widest underline decoration-femac-yellow decoration-4 underline-offset-8">{report.overallGrade}</td>
+                          </tr>
+                        </tfoot>
                       </table>
-                      {assignmentGrades.length === 0 && (
-                        <div className="p-20 text-center">
-                          <AlertCircle size={48} className="mx-auto text-slate-200 mb-4" />
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-300">No score entries found for this assignment</p>
-                        </div>
-                      )}
+                      <div className="p-10 border-t border-slate-100 bg-slate-50 flex items-start space-x-6">
+                         <div className="bg-white p-4 rounded-2xl shadow-sm"><Info className="text-femac-yellow" size={24}/></div>
+                         <div>
+                            <h5 className="text-[11px] font-black uppercase text-femac-900 tracking-widest mb-2">Teacher Evaluation Node</h5>
+                            <p className="text-xs font-bold text-slate-500 leading-relaxed uppercase tracking-wide">{report.teacherComment || 'Registry Remark: Candidate data synchronization complete. No specific teacher notes logged.'}</p>
+                         </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -216,40 +245,43 @@ export const ExamsPortal: React.FC = () => {
             );
           })
         ) : (
-          <div className="py-24 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 text-center">
-            <Filter size={48} className="mx-auto text-slate-200 mb-4" />
-            <h4 className="text-xl font-black text-slate-300 uppercase tracking-widest">No Active Assignments for {currentClass?.name}</h4>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Check another grade or subject registry</p>
+          <div className="py-32 bg-white rounded-[4rem] border-4 border-dashed border-slate-100 text-center flex flex-col items-center justify-center px-10">
+            <div className="w-24 h-24 bg-slate-50 text-slate-200 rounded-[2rem] flex items-center justify-center mb-8">
+              <SearchCode className="opacity-20" size={64} />
+            </div>
+            <h4 className="text-3xl font-black text-slate-300 uppercase tracking-tighter">No Reports Identified</h4>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-3 max-w-sm">
+              Adjust filters or search string to retrieve candidate data from Grade {activeGrade} Registry.
+            </p>
           </div>
         )}
       </div>
 
-      {/* Strategic Footer Metrics */}
-      <div className="bg-femac-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-femac-yellow opacity-5 blur-[100px] group-hover:opacity-10 transition-opacity"></div>
-        <div className="flex flex-col md:flex-row items-center justify-between relative z-10 gap-8">
-          <div className="max-w-md">
-            <h4 className="text-sm font-black uppercase tracking-[0.3em] text-femac-yellow mb-3">Validation Integrity Notice</h4>
-            <p className="text-xs text-femac-200 leading-relaxed font-medium">
-              Once results are published, they become immutable records accessible by pupils and parents. Ensure all student entries are verified against the physical score sheets before authorization.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-8 md:gap-12">
-            <div className="text-center">
-              <p className="text-3xl font-black text-white leading-none mb-1">100%</p>
-              <p className="text-[8px] font-black uppercase tracking-widest text-femac-400">Data Integrity</p>
-            </div>
-            <div className="text-center border-x border-white/10 px-8">
-              <p className="text-3xl font-black text-white leading-none mb-1">0.8s</p>
-              <p className="text-[8px] font-black uppercase tracking-widest text-femac-400">Sync Latency</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-black text-white leading-none mb-1">7.4k</p>
-              <p className="text-[8px] font-black uppercase tracking-widest text-femac-400">Monthly Syncs</p>
-            </div>
-          </div>
+      {/* Footer Support Node */}
+      <div className="bg-slate-900 p-10 rounded-[3.5rem] text-white flex flex-col md:flex-row items-center justify-between gap-8 border border-white/5">
+        <div className="flex items-center space-x-6">
+           <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10"><LayoutGrid size={28} className="text-femac-yellow" /></div>
+           <div>
+              <p className="text-lg font-black uppercase tracking-tight">External Data Federation</p>
+              <p className="text-[10px] font-bold text-femac-400 uppercase tracking-widest">Authorized linkage to ECZ Central Repository Node</p>
+           </div>
+        </div>
+        <div className="flex items-center space-x-6">
+           <div className="text-right">
+              <p className="text-[10px] font-black text-femac-yellow uppercase tracking-widest mb-1">System Status</p>
+              <p className="text-[9px] font-bold text-white/50 uppercase">Sync Frequency: 500ms • Region: Zambia Central</p>
+           </div>
+           <TrendingUp className="text-green-500" size={32} />
         </div>
       </div>
     </div>
   );
 };
+
+/* Missing icons added for the refined UI */
+const SearchCode = ({ size, className, ...props }: any) => (
+  <div className={`flex items-center justify-center ${className}`} {...props}>
+    <Search size={size} className="absolute" />
+    <ShieldCheck size={size * 0.5} className="relative translate-y-2 translate-x-2" />
+  </div>
+);

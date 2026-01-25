@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { User, UserRole } from './types';
+import { User, UserRole, ApplicationStatus } from './types';
 import { MOCK_USERS } from './constants';
 import { MockDB } from './services/mockDb';
 import { Layout } from './components/Layout';
@@ -14,9 +15,16 @@ import {
   Eye, EyeOff, ArrowLeft, CheckCircle2, AlertCircle, BookOpen, GraduationCap, 
   Microscope, Languages, Calculator, FlaskConical, Globe2,
   FileEdit, UserPlus, CreditCard, Smartphone, Landmark, Copy,
-  User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload,
-  Home, Lock, MessageCircle, Facebook, Hash, Map, UserCheck
+  User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload, Download,
+  Home, Lock, MessageCircle, Facebook, Hash, Map, UserCheck, Search, SearchCode,
+  CheckCircle, XCircle, Clock, FileCheck, Briefcase, IdCard, Star, Timer
 } from 'lucide-react';
+
+// Helper function for role display labels
+const getRoleDisplayLabel = (role: UserRole) => {
+  if (role === UserRole.EXECUTIVE_ACCOUNTS) return 'EXECUTIVE / ACCOUNTS';
+  return role.replace('_', ' ');
+};
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,26 +40,60 @@ const App: React.FC = () => {
 
   // Admission States
   const [showAdmissionModal, setShowAdmissionModal] = useState(false);
-  const [activeAdmissionTab, setActiveAdmissionTab] = useState<null | 'fees' | 'form' | 'policy'>(null);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [activeAdmissionTab, setActiveAdmissionTab] = useState<null | 'fees' | 'form' | 'policy' | 'tracker'>(null);
   const [isFillingForm, setIsFillingForm] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
 
-  // Form Field States
+  // Form Field States - Detailed Profile
   const [formFirstName, setFormFirstName] = useState('');
   const [formLastName, setFormLastName] = useState('');
+  const [formGender, setFormGender] = useState('');
   const [formGrade, setFormGrade] = useState('');
+  const [formDob, setFormDob] = useState('');
+  const [formPrevSchool, setFormPrevSchool] = useState('');
+  
+  // Guardian Fields
+  const [formGuardianName, setFormGuardianName] = useState('');
+  const [formParentNrc, setFormParentNrc] = useState('');
+  const [formRelationship, setFormRelationship] = useState('');
+  const [formOccupation, setFormOccupation] = useState('');
+  const [formPhone, setFormPhone] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formAddress, setFormAddress] = useState('');
+  
+  // Emergency Fields
+  const [formEmergencyName, setFormEmergencyName] = useState('');
+  const [formEmergencyPhone, setFormEmergencyPhone] = useState('');
+
+  // Tracker State
+  const [trackerSearchTerm, setTrackerSearchTerm] = useState('');
+  const [trackedApplication, setTrackedApplication] = useState<any>(null);
 
   const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png"; 
 
   const handleRoleSelect = (role: UserRole) => {
     if (role === UserRole.TEACHER) {
       setLoginStep('grade');
+    } else if (role === UserRole.EXAMS_OFFICE || role === UserRole.EXECUTIVE_ACCOUNTS) {
+      const foundUser = MOCK_USERS.find(u => u.role === role);
+      if (foundUser) {
+        setPendingUser(foundUser);
+        setLoginStep('password');
+        setLoginError(false);
+        setPassword('');
+      }
     } else {
       const foundUser = MOCK_USERS.find(u => u.role === role);
       if (foundUser) {
         setUser(foundUser);
         setView('portal');
-        setActivePage(role === UserRole.PARENT ? 'results' : 'dashboard');
+        if (role === UserRole.PARENT) {
+          setActivePage('results');
+        } else {
+          setActivePage('dashboard');
+        }
       }
     }
   };
@@ -66,18 +108,19 @@ const App: React.FC = () => {
     }
   };
 
-  const handleTeacherLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const TEACHER_PASSWORDS: Record<string, string> = {
-      'U-TEA-G1': 'Chikuni1', 'U-TEA-G2': 'Chikuni1', 'U-TEA-G3': 'Chikuni1',
-      'U-TEA-G4': 'Chikuni1', 'U-TEA-G5': 'Chikuni1', 'U-TEA-G6': 'Chikuni1',
-      'U-TEA-G7': 'Chikuni1', 'U-TEA-F1': 'Chikuni1', 'U-TEA-G9': 'Chikuni1',
-      'U-TEA-G10': 'Chikuni1'
-    };
-    if (pendingUser && password === TEACHER_PASSWORDS[pendingUser.id]) {
+    const AUTH_KEY = 'Chikuni1';
+    if (pendingUser && password === AUTH_KEY) {
       setUser(pendingUser);
       setView('portal');
-      setActivePage('dashboard');
+      if (pendingUser.role === UserRole.EXECUTIVE_ACCOUNTS) {
+        setActivePage('financials');
+      } else if (pendingUser.role === UserRole.PARENT) {
+        setActivePage('results');
+      } else {
+        setActivePage('dashboard');
+      }
       setPendingUser(null);
       setLoginStep('role');
       setPassword('');
@@ -89,9 +132,11 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setUser(null);
-    setView('website');
+    setView('login');
     setPendingUser(null);
     setLoginStep('role');
+    setPassword('');
+    setShowPassword(false);
   };
 
   const handleGoHome = () => {
@@ -101,13 +146,37 @@ const App: React.FC = () => {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Persist to MockDB
-    MockDB.createStudent(formFirstName, formLastName, parseInt(formGrade), 'U-PAR-PROSPECT');
+    const newStudent = MockDB.createStudent({
+      firstName: formFirstName,
+      lastName: formLastName,
+      gender: formGender,
+      grade: parseInt(formGrade),
+      dob: formDob,
+      previousSchool: formPrevSchool,
+      guardianName: formGuardianName,
+      parentNrc: formParentNrc,
+      relationship: formRelationship,
+      occupation: formOccupation,
+      phone: formPhone,
+      email: formEmail,
+      address: formAddress,
+      emergencyName: formEmergencyName,
+      emergencyPhone: formEmergencyPhone,
+      parentId: 'U-PAR-PROSPECT'
+    });
+    setLastSubmissionId(newStudent.id);
     setFormSubmitted(true);
-    // Reset fields for next application
-    setFormFirstName('');
-    setFormLastName('');
-    setFormGrade('');
+    
+    setFormFirstName(''); setFormLastName(''); setFormGender(''); setFormGrade(''); setFormDob(''); setFormPrevSchool('');
+    setFormGuardianName(''); setFormParentNrc(''); setFormRelationship(''); setFormOccupation(''); 
+    setFormPhone(''); setFormEmail(''); setFormAddress('');
+    setFormEmergencyName(''); setFormEmergencyPhone('');
+  };
+
+  const handleTrackApplication = (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = MockDB.getStudentById(trackerSearchTerm.toUpperCase());
+    setTrackedApplication(result || 'NOT_FOUND');
   };
 
   const closeAdmissionRegistry = () => {
@@ -115,14 +184,118 @@ const App: React.FC = () => {
     setActiveAdmissionTab(null);
     setIsFillingForm(false);
     setFormSubmitted(false);
+    setTrackerSearchTerm('');
+    setTrackedApplication(null);
   };
 
-  const getRoleDisplayLabel = (role: UserRole) => {
-    if (role === UserRole.EXECUTIVE_ACCOUNTS) return 'EXECUTIVE/ACCOUNTS';
-    return role.replace('_', ' ');
-  };
+  // Login view logic
+  if (view === 'login') {
+    const rolesToShow = [UserRole.PUPIL, UserRole.PARENT, UserRole.TEACHER, UserRole.EXAMS_OFFICE, UserRole.EXECUTIVE_ACCOUNTS];
+    const teacherUserIds = ['U-TEA-G1', 'U-TEA-G2', 'U-TEA-G3', 'U-TEA-G4', 'U-TEA-G5', 'U-TEA-G6', 'U-TEA-G7', 'U-TEA-F1'];
+    const teacherUsers = MOCK_USERS.filter(u => teacherUserIds.includes(u.id));
+    return (
+      <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none">
+          <img src={LOGO_URL} alt="" className="w-[800px] h-[800px] object-contain" />
+        </div>
+        <div className="bg-white rounded-[3rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.3)] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative z-10 border border-white/40">
+           <div className="md:w-1/2 bg-femac-900 p-16 text-white flex flex-col justify-center relative overflow-hidden">
+             <div className="absolute -top-24 -left-24 w-72 h-72 bg-femac-yellow opacity-10 rounded-full blur-[120px]"></div>
+             <button onClick={() => { setView('website'); setPendingUser(null); setLoginStep('role'); }} className="absolute top-10 left-10 text-femac-400 hover:text-white flex items-center text-xs font-black uppercase tracking-[0.25em] transition-all group">
+               <span className="mr-2 group-hover:-translate-x-1 transition-transform">←</span> Return Home
+             </button>
+             <div className="mb-12">
+               <img src={LOGO_URL} alt="Logo" className="w-32 h-32 mb-10 object-contain filter drop-shadow-[0_0_20px_rgba(250,204,21,0.2)]" />
+               <h1 className="text-7xl font-black mb-2 tracking-tighter relative text-femac-yellow leading-none uppercase">FAIMS<span className="text-white">.</span></h1>
+               <p className="text-femac-300 text-lg font-black uppercase tracking-[0.4em] opacity-80">Portal Access</p>
+             </div>
+           </div>
+           <div className="md:w-1/2 p-16 flex flex-col justify-center bg-white/95 backdrop-blur-sm relative">
+             {loginStep === 'role' ? (
+               <>
+                 <h2 className="text-4xl font-black text-slate-800 mb-3 tracking-tighter">System Access.</h2>
+                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-10">Select an authorized role to proceed</p>
+                 <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
+                   {rolesToShow.map(role => (
+                     <button key={role} onClick={() => handleRoleSelect(role)} className="w-full flex items-center justify-between p-6 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group active:scale-[0.98] shadow-sm hover:shadow-lg">
+                       <div className="flex items-center space-x-5">
+                          <div className="bg-slate-100 p-4 rounded-2xl group-hover:bg-femac-yellow transition-colors"><Key size={22} className="text-slate-500 group-hover:text-femac-900 transition-colors"/></div>
+                          <div className="text-left"><p className="font-black text-xl text-slate-800 group-hover:text-femac-900 leading-none mb-1 uppercase tracking-tight">{getRoleDisplayLabel(role)}</p><p className="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-black">Authorized Portal</p></div>
+                       </div>
+                       <ChevronRight className="text-slate-300 group-hover:text-femac-900 group-hover:translate-x-1 transition-all" size={24} />
+                     </button>
+                   ))}
+                 </div>
+               </>
+             ) : loginStep === 'grade' ? (
+               <div className="animate-in slide-in-from-right duration-300">
+                 <button onClick={() => setLoginStep('role')} className="mb-8 flex items-center text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-femac-900 transition-colors"><ArrowLeft size={14} className="mr-2" /> Return to Roles</button>
+                 <h2 className="text-4xl font-black text-slate-800 mb-3 tracking-tighter uppercase leading-none">Teacher <span className="text-femac-yellow">Registry</span></h2>
+                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-10">Identify your assigned Grade Level</p>
+                 <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                   {teacherUsers.map(u => (
+                      <button key={u.id} onClick={() => handleGradeSelect(u.id)} className="w-full flex items-center justify-between p-5 border-2 border-slate-100 rounded-[1.5rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group active:scale-[0.98] shadow-sm">
+                        <div className="flex items-center space-x-5">
+                           <div className="bg-femac-900 p-3 rounded-xl group-hover:bg-femac-yellow transition-colors"><School size={18} className="text-femac-yellow group-hover:text-femac-900 transition-colors"/></div>
+                           <p className="font-black text-lg text-slate-800 uppercase tracking-tight">{u.name}</p>
+                        </div>
+                        <ChevronRight className="text-slate-300 group-hover:text-femac-900" size={20} />
+                      </button>
+                   ))}
+                 </div>
+               </div>
+             ) : (
+               <div className="animate-in slide-in-from-right duration-300">
+                 <button onClick={() => { if (pendingUser?.role === UserRole.TEACHER) setLoginStep('grade'); else setLoginStep('role'); }} className="mb-8 flex items-center text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-femac-900 transition-colors"><ArrowLeft size={14} className="mr-2" /> {pendingUser?.role === UserRole.TEACHER ? 'Change Grade' : 'Return to Roles'}</button>
+                 <div className="flex items-center space-x-5 mb-10">
+                    <div className="w-20 h-20 bg-femac-900 rounded-2xl border-4 border-femac-yellow flex items-center justify-center text-femac-yellow font-black text-2xl uppercase">
+                      <UserIcon size={32} />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-800 leading-none mb-1 uppercase tracking-tight">{pendingUser?.name}</h2>
+                      <p className="text-[10px] text-femac-500 uppercase tracking-[0.3em] font-black">Personal Registry Secure Key</p>
+                    </div>
+                 </div>
+                 <form onSubmit={handleLoginSubmit} className="space-y-6">
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center">
+                         <Lock size={12} className="mr-1 text-femac-yellow" /> Personal Access Password
+                       </label>
+                       <div className="relative">
+                          <input 
+                            required autoFocus type={showPassword ? "text" : "password"} value={password} onChange={(e) => { setPassword(e.target.value); setLoginError(false); }}
+                            className={`w-full p-5 pr-14 bg-slate-50 border-2 rounded-2xl focus:ring-4 focus:ring-femac-yellow/10 outline-none font-bold text-slate-700 transition-all ${loginError ? 'border-red-500' : 'border-slate-100 focus:border-femac-yellow'}`}
+                            placeholder="••••••••"
+                          />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-femac-900">{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button>
+                       </div>
+                    </div>
+                    {loginError && <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mt-2 flex items-center"><AlertCircle size={12} className="mr-1" /> Authentication Failed.</p>}
+                    <button type="submit" className="w-full bg-femac-900 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-femac-800 transition-all transform active:scale-95 flex items-center justify-center space-x-3"><span>Grant Access</span><ShieldCheck size={20} className="text-femac-yellow" /></button>
+                 </form>
+               </div>
+             )}
+           </div>
+        </div>
+      </div>
+    );
+  }
 
-  const LandingPage = () => (
+  // Portal view logic
+  if (view === 'portal' && user) {
+    const renderContent = () => {
+      if (user.role === UserRole.TEACHER) return <TeacherPortal currentUser={user} />;
+      if (user.role === UserRole.EXAMS_OFFICE) return <ExamsPortal />;
+      if (user.role === UserRole.PARENT) return <ParentPortal activePage={activePage} />;
+      if (user.role === UserRole.PUPIL) return <StudentPortal />;
+      if (user.role === UserRole.EXECUTIVE_ACCOUNTS) return <ExecutiveAccountsPortal activePage={activePage} />;
+      return <div className="p-10 text-center"><h2 className="text-3xl font-black text-slate-300 uppercase tracking-widest mt-20">Access Restricted</h2></div>;
+    };
+    return <Layout user={user} onLogout={handleLogout} onGoHome={handleGoHome} activePage={activePage} onNavigate={setActivePage}>{renderContent()}</Layout>;
+  }
+
+  // Website / Landing Page logic
+  return (
     <div className="min-h-screen bg-white relative">
       <div className="fixed inset-0 flex items-center justify-center opacity-[0.02] pointer-events-none z-0">
         <img src={LOGO_URL} alt="" className="w-[800px] h-[800px] object-contain rotate-12" />
@@ -136,10 +309,13 @@ const App: React.FC = () => {
             <span className="text-[11px] tracking-[0.25em] text-femac-300 font-black uppercase">Dedicated to Excellence</span>
           </div>
         </button>
-        <div className="hidden lg:flex space-x-8 text-xs font-black uppercase tracking-widest text-femac-100">
+        <div className="hidden lg:flex items-center space-x-8 text-xs font-black uppercase tracking-widest text-femac-100">
           <a href="#about" className="hover:text-femac-yellow transition-colors">About</a>
           <a href="#academic" className="hover:text-femac-yellow transition-colors">Academic</a>
           <a href="#admissions" className="hover:text-femac-yellow transition-colors">Admissions</a>
+          <button onClick={() => setShowCalendarModal(true)} className="flex items-center text-femac-yellow hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-full border border-white/10">
+            <Calendar size={14} className="mr-2" /> Calendar
+          </button>
         </div>
         <button onClick={() => setView(user ? 'portal' : 'login')} className="bg-femac-yellow text-femac-900 px-8 py-2.5 rounded-full font-black text-sm hover:scale-105 transition-all shadow-xl flex items-center">
           {user ? 'Back to Portal' : 'Portal Login'} <ChevronRight size={18} className="ml-1" />
@@ -160,6 +336,7 @@ const App: React.FC = () => {
               <button onClick={() => setShowAdmissionModal(true)} className="bg-femac-yellow text-femac-900 px-10 py-5 rounded-2xl font-black text-lg shadow-2xl hover:bg-white transition-all transform hover:-translate-y-1">
                 Enroll Your Child
               </button>
+              {/* Note: 'Track Application' hidden from hero for cleaner UI as requested */}
             </div>
           </div>
           <div className="md:w-1/2 grid grid-cols-2 gap-6">
@@ -298,6 +475,122 @@ const App: React.FC = () => {
         </div>
       </section>
 
+      {/* School Calendar Modal */}
+      {showCalendarModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden relative border border-white/20 min-h-[700px] flex flex-col md:flex-row">
+            <button onClick={() => setShowCalendarModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-femac-900 transition-colors z-[110]"><X size={32} /></button>
+            
+            <div className="md:w-1/4 bg-femac-900 p-10 text-white flex flex-col justify-center relative overflow-hidden shrink-0">
+                <div className="absolute -top-10 -left-10 w-40 h-40 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
+                <img src={LOGO_URL} alt="Logo" className="w-20 h-20 mb-8 relative z-10 mx-auto md:mx-0" />
+                <h3 className="text-3xl font-black tracking-tighter uppercase leading-none mb-4 relative z-10 text-center md:text-left">Academic<br/><span className="text-femac-yellow">Calendar</span></h3>
+                <div className="mt-12 space-y-4 relative z-10">
+                  <div className="bg-white/10 p-5 rounded-2xl border border-white/10 text-center">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-femac-400 mb-1">Current Cycle</p>
+                    <p className="text-xl font-black text-femac-yellow leading-none uppercase">2026/2027</p>
+                  </div>
+                  <button onClick={() => setShowCalendarModal(false)} className="flex items-center space-x-2 text-white/60 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/30 px-4 py-2 rounded-full w-full justify-center md:justify-start mt-8"><Home size={14} /> <span>Return to Home</span></button>
+                </div>
+            </div>
+
+            <div className="md:w-3/4 p-10 md:p-14 flex flex-col bg-white overflow-y-auto max-h-[90vh] custom-scrollbar">
+                <div className="flex items-center justify-between mb-12 border-b border-slate-100 pb-6">
+                    <div>
+                        <h4 className="text-4xl font-black text-femac-900 tracking-tighter uppercase leading-none">Master Schedule</h4>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Key Dates & Terminology Nodes</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl flex items-center space-x-3 text-femac-900">
+                        <Timer size={24} className="text-femac-yellow" />
+                        <span className="text-xs font-black uppercase tracking-widest">Live Registry Sync</span>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-12">
+                    {/* Term 1 */}
+                    <div className="space-y-6">
+                        <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
+                            <Star size={20} className="text-femac-900" />
+                            <h5 className="font-black uppercase tracking-widest text-lg">Term 1: Foundations</h5>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Opening Date</p><p className="font-black text-femac-900 uppercase">January 12, 2026</p></div>
+                                <Calendar size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Mid-Term Break</p><p className="font-black text-femac-900 uppercase">Feb 23 — Feb 27</p></div>
+                                <Timer size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all sm:col-span-2">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Closing & Vacation</p><p className="font-black text-femac-900 uppercase">April 10, 2026</p></div>
+                                <Info size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Term 2 */}
+                    <div className="space-y-6">
+                        <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
+                            <Zap size={20} className="text-femac-900" />
+                            <h5 className="font-black uppercase tracking-widest text-lg">Term 2: Core Growth</h5>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Opening Date</p><p className="font-black text-femac-900 uppercase">May 11, 2026</p></div>
+                                <Calendar size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Mid-Term Break</p><p className="font-black text-femac-900 uppercase">June 22 — June 26</p></div>
+                                <Timer size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all sm:col-span-2">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Closing & Vacation</p><p className="font-black text-femac-900 uppercase">August 14, 2026</p></div>
+                                <Info size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Term 3 */}
+                    <div className="space-y-6">
+                        <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
+                            <Trophy size={20} className="text-femac-900" />
+                            <h5 className="font-black uppercase tracking-widest text-lg">Term 3: Excellence</h5>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Opening Date</p><p className="font-black text-femac-900 uppercase">Sept 14, 2026</p></div>
+                                <Calendar size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Mid-Term Break</p><p className="font-black text-femac-900 uppercase">Oct 19 — Oct 23</p></div>
+                                <Timer size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all sm:col-span-2">
+                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Closing & Vacation</p><p className="font-black text-femac-900 uppercase">Dec 11, 2026</p></div>
+                                <Info size={20} className="text-slate-200 group-hover:text-femac-yellow" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-16 p-8 bg-femac-900 text-white rounded-[2rem] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center space-x-4">
+                        <div className="p-3 bg-white/10 rounded-xl"><Map size={24} className="text-femac-yellow" /></div>
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest">Public Holidays Note</p>
+                            <p className="text-[9px] font-bold text-femac-300 uppercase tracking-widest mt-1 opacity-70">The Academy remains closed on all Zambian Gazetted Holidays.</p>
+                        </div>
+                    </div>
+                    <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center transition-all border border-white/10">
+                        <Download size={14} className="mr-2 text-femac-yellow" /> Export PDF Schedule
+                    </button>
+                </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admission Process Modal */}
       {showAdmissionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
@@ -309,7 +602,7 @@ const App: React.FC = () => {
                 <img src={LOGO_URL} alt="Logo" className="w-20 h-20 mb-8 relative z-10 mx-auto md:mx-0" />
                 <h3 className="text-3xl font-black tracking-tighter uppercase leading-none mb-4 relative z-10 text-center md:text-left">Admission<br/><span className="text-femac-yellow">Registry</span></h3>
                 <div className="mt-12 space-y-4 relative z-10">
-                  {(activeAdmissionTab || isFillingForm) && (<button onClick={() => { if (isFillingForm) setIsFillingForm(false); else setActiveAdmissionTab(null); }} className="flex items-center space-x-2 text-femac-yellow text-[10px] font-black uppercase tracking-widest hover:translate-x-[-4px] transition-transform border border-femac-yellow/30 px-4 py-2 rounded-full w-full justify-center md:justify-start"><ArrowLeft size={14} /> <span>Back to Menu</span></button>)}
+                  {(activeAdmissionTab || isFillingForm) && (<button onClick={() => { if (isFillingForm) setIsFillingForm(false); else setActiveAdmissionTab(null); setTrackedApplication(null); setTrackerSearchTerm(''); }} className="flex items-center space-x-2 text-femac-yellow text-[10px] font-black uppercase tracking-widest hover:translate-x-[-4px] transition-transform border border-femac-yellow/30 px-4 py-2 rounded-full w-full justify-center md:justify-start"><ArrowLeft size={14} /> <span>Back to Menu</span></button>)}
                   <button onClick={closeAdmissionRegistry} className="flex items-center space-x-2 text-white/60 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/30 px-4 py-2 rounded-full w-full justify-center md:justify-start"><Home size={14} /> <span>Back to Home</span></button>
                 </div>
               </div>
@@ -317,16 +610,20 @@ const App: React.FC = () => {
                 {!activeAdmissionTab && !isFillingForm ? (
                   <div className="flex flex-col justify-center h-full">
                     <h4 className="text-2xl font-black text-slate-800 tracking-tight mb-8 uppercase border-b border-slate-100 pb-4">Required Action Steps</h4>
-                    <div className="grid grid-cols-1 gap-6">
-                      <button onClick={() => setActiveAdmissionTab('fees')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50 transition-all group text-left shadow-sm">
+                    <div className="grid grid-cols-1 gap-4">
+                      <button onClick={() => setActiveAdmissionTab('fees')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
                         <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><DollarSign className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
                         <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">SCHOOL FEES</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Financial breakdown per level</span></div>
                       </button>
-                      <button onClick={() => setActiveAdmissionTab('form')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50 transition-all group text-left shadow-sm">
+                      <button onClick={() => setActiveAdmissionTab('form')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
                         <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><FileEdit className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
                         <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">ENROLLMENT FORM</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Digital application portal</span></div>
                       </button>
-                      <button onClick={() => setActiveAdmissionTab('policy')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50 transition-all group text-left shadow-sm">
+                      <button onClick={() => setActiveAdmissionTab('tracker')} className="flex items-center space-x-6 p-6 bg-femac-900 text-white rounded-[2rem] hover:bg-femac-800 transition-all group text-left shadow-2xl">
+                        <div className="w-16 h-16 bg-femac-yellow rounded-2xl flex items-center justify-center shadow-lg"><SearchCode className="text-femac-900" size={28} /></div>
+                        <div><span className="block text-xl font-black text-femac-yellow uppercase tracking-tight">TRACK APPLICATION</span><span className="text-xs text-femac-300 font-bold uppercase tracking-widest">Live Enrollment Status</span></div>
+                      </button>
+                      <button onClick={() => setActiveAdmissionTab('policy')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
                         <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><ShieldCheck className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
                         <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">PAYMENT POLICY</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Terms, conditions & deadlines</span></div>
                       </button>
@@ -334,6 +631,83 @@ const App: React.FC = () => {
                   </div>
                 ) : (
                   <div className="animate-in slide-in-from-right duration-500">
+                    {activeAdmissionTab === 'tracker' && (
+                        <div className="space-y-10">
+                            <div>
+                                <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Application Tracker</h4>
+                                <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mb-8">Official Enrollment Retrieval</p>
+                            </div>
+                            
+                            <form onSubmit={handleTrackApplication} className="space-y-6">
+                               <div className="relative">
+                                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                                  <input 
+                                    required
+                                    type="text" 
+                                    value={trackerSearchTerm} 
+                                    onChange={(e) => setTrackerSearchTerm(e.target.value)} 
+                                    placeholder="Enter Candidate Registry ID (e.g. S-2026-001)" 
+                                    className="w-full pl-16 pr-6 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-black text-femac-900 uppercase text-lg focus:border-femac-yellow transition-all"
+                                  />
+                               </div>
+                               <button type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest hover:bg-femac-800 transition-all flex items-center justify-center shadow-xl">
+                                  Check Registry Status
+                               </button>
+                            </form>
+
+                            {trackedApplication && trackedApplication !== 'NOT_FOUND' && (
+                                <div className="bg-slate-50 p-10 rounded-[3rem] border-2 border-femac-yellow/20 animate-in zoom-in duration-300">
+                                   <div className="flex items-center space-x-6 mb-8">
+                                      <div className="w-20 h-20 bg-femac-900 rounded-[1.5rem] flex items-center justify-center text-femac-yellow text-3xl font-black uppercase shadow-xl">PUPIL</div>
+                                      <div>
+                                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Academic Identifier</p>
+                                         <h5 className="text-3xl font-black text-femac-900 uppercase tracking-tighter leading-none">{trackedApplication.id}</h5>
+                                         <p className="text-xs font-bold text-slate-500 mt-2 uppercase tracking-widest">{trackedApplication.firstName} {trackedApplication.lastName} • Grade {trackedApplication.grade}</p>
+                                      </div>
+                                   </div>
+
+                                   <div className="grid grid-cols-1 gap-6">
+                                      {trackedApplication.applicationStatus === ApplicationStatus.PENDING && (
+                                        <div className="bg-white p-8 rounded-3xl border border-amber-100 flex items-start space-x-4 shadow-sm">
+                                           <div className="shrink-0 bg-amber-50 p-4 rounded-2xl"><Clock className="text-amber-600 animate-spin-slow" size={32} /></div>
+                                           <div>
+                                              <p className="text-lg font-black text-amber-700 uppercase tracking-tight mb-1">File Under Review</p>
+                                              <p className="text-xs text-slate-500 font-medium leading-relaxed">Your academic file is currently being processed by the Executive Operations Registry. This process typically takes 3-5 working days.</p>
+                                           </div>
+                                        </div>
+                                      )}
+                                      {trackedApplication.applicationStatus === ApplicationStatus.ACCEPTED && (
+                                        <div className="bg-white p-8 rounded-3xl border border-green-100 flex items-start space-x-4 shadow-sm">
+                                           <div className="shrink-0 bg-green-50 p-4 rounded-2xl"><CheckCircle className="text-green-600" size={32} /></div>
+                                           <div>
+                                              <p className="text-lg font-black text-green-700 uppercase tracking-tight mb-1">Application Accepted</p>
+                                              <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6">Congratulations! Candidate <span className="text-femac-900 font-black">{trackedApplication.firstName}</span> has been formally enrolled at FEMAC Academy.</p>
+                                              <button className="bg-femac-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center hover:bg-femac-800 transition-all shadow-lg"><Download size={14} className="mr-2 text-femac-yellow" /> Download Acceptance Letter</button>
+                                           </div>
+                                        </div>
+                                      )}
+                                      {trackedApplication.applicationStatus === ApplicationStatus.DECLINED && (
+                                        <div className="bg-white p-8 rounded-3xl border border-red-100 flex items-start space-x-4 shadow-sm">
+                                           <div className="shrink-0 bg-red-50 p-4 rounded-2xl"><XCircle className="text-red-600" size={32} /></div>
+                                           <div>
+                                              <p className="text-lg font-black text-red-700 uppercase tracking-tight mb-1">Registry Update</p>
+                                              <p className="text-xs text-slate-500 font-medium leading-relaxed">We regret to inform you that we are unable to offer enrollment at this time. Please contact the Admissions Office for more detailed feedback.</p>
+                                           </div>
+                                        </div>
+                                      )}
+                                   </div>
+                                </div>
+                            )}
+
+                            {trackedApplication === 'NOT_FOUND' && (
+                                <div className="bg-red-50 p-10 rounded-[3rem] border border-red-100 text-center animate-in shake duration-300">
+                                   <AlertCircle className="mx-auto text-red-500 mb-4" size={48} />
+                                   <h5 className="text-xl font-black text-red-700 uppercase tracking-tight mb-2">Invalid Registry Key</h5>
+                                   <p className="text-xs text-red-600 font-medium">No application found matching that Identifier. Ensure you enter the exact ID provided during submission.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {activeAdmissionTab === 'fees' && (
                         <div>
                             <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Tuition & Fees</h4>
@@ -367,15 +741,16 @@ const App: React.FC = () => {
                           <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in duration-500">
                              <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8"><CheckCircle2 size={56} /></div>
                              <h4 className="text-4xl font-black text-femac-900 uppercase tracking-tight mb-4">Submission Received!</h4>
-                             <p className="text-slate-500 font-medium max-w-md mx-auto mb-10">Application reference <span className="text-femac-900 font-black">#FA-2026-REGT</span>. Your file has been sent to the Executive Operations Registry.</p>
-                             <button onClick={closeAdmissionRegistry} className="px-10 py-4 bg-femac-900 text-white rounded-xl font-black uppercase tracking-widest">Close Admission Registry</button>
+                             <p className="text-slate-500 font-medium max-w-md mx-auto mb-10">Your Registry Academic ID is <span className="text-femac-900 font-black text-2xl block mt-2 border-2 border-dashed border-femac-yellow p-4 rounded-xl">{lastSubmissionId}</span> Use this ID to track your application status.</p>
+                             <button onClick={() => { setFormSubmitted(false); setActiveAdmissionTab('tracker'); setTrackerSearchTerm(lastSubmissionId || ''); }} className="px-10 py-4 bg-femac-900 text-white rounded-xl font-black uppercase tracking-widest shadow-lg hover:bg-femac-800 transition-all">Track Status Now</button>
                           </div>
                         ) : (
                           <form onSubmit={handleFormSubmit} className="space-y-16">
+                              {/* CANDIDATE SECTION */}
                               <div className="space-y-8">
                                 <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                                  <UserIcon size={24} className="text-femac-900" />
-                                  <h5 className="font-black uppercase tracking-widest text-lg">Candidate Identity</h5>
+                                  <GraduationCap size={24} className="text-femac-900" />
+                                  <h5 className="font-black uppercase tracking-widest text-lg">Academic Identity & Profile</h5>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                   <div className="space-y-2">
@@ -387,8 +762,16 @@ const App: React.FC = () => {
                                     <input required type="text" value={formLastName} onChange={(e) => setFormLastName(e.target.value)} placeholder="e.g., Mulenga" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
                                   </div>
                                   <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Gender</label>
+                                    <select required value={formGender} onChange={(e) => setFormGender(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all appearance-none">
+                                      <option value="">Select Gender...</option>
+                                      <option value="MALE">MALE</option>
+                                      <option value="FEMALE">FEMALE</option>
+                                    </select>
+                                  </div>
+                                  <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Date of Birth</label>
-                                    <input required type="date" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    <input required type="date" value={formDob} onChange={(e) => setFormDob(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
                                   </div>
                                   <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Grade Applied For</label>
@@ -399,45 +782,90 @@ const App: React.FC = () => {
                                       ))}
                                     </select>
                                   </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Previous School Attended</label>
+                                    <input type="text" value={formPrevSchool} onChange={(e) => setFormPrevSchool(e.target.value)} placeholder="School Name & Town" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
                                 </div>
                               </div>
+
+                              {/* GUARDIAN SECTION */}
                               <div className="space-y-8">
                                 <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
                                   <ShieldCheck size={24} className="text-femac-900" />
-                                  <h5 className="font-black uppercase tracking-widest text-lg">Guardian Registry</h5>
+                                  <h5 className="font-black uppercase tracking-widest text-lg">Guardian / Parent Registry</h5>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                   <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Primary Guardian Name</label>
-                                    <input required type="text" placeholder="Full Name" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    <div className="relative">
+                                      <UserIcon size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                      <input required type="text" value={formGuardianName} onChange={(e) => setFormGuardianName(e.target.value)} placeholder="Full Name" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    </div>
                                   </div>
                                   <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Relationship</label>
-                                    <input required type="text" placeholder="e.g., Father" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">NRC / Identity Number</label>
+                                    <div className="relative">
+                                      <IdCard size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                      <input required type="text" value={formParentNrc} onChange={(e) => setFormParentNrc(e.target.value)} placeholder="xxxxxx/xx/x" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Relationship to Pupil</label>
+                                    <input required type="text" value={formRelationship} onChange={(e) => setFormRelationship(e.target.value)} placeholder="e.g., Father" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Occupation</label>
+                                    <div className="relative">
+                                      <Briefcase size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                      <input type="text" value={formOccupation} onChange={(e) => setFormOccupation(e.target.value)} placeholder="Industry or Profession" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    </div>
                                   </div>
                                   <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Active Phone Line</label>
                                     <div className="relative">
                                       <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input required type="tel" placeholder="09xx xxx xxx" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                      <input required type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="09xx xxx xxx" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
                                     </div>
                                   </div>
                                   <div className="space-y-2">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Email Correspondence</label>
                                     <div className="relative">
                                       <Mail size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input required type="email" placeholder="name@domain.com" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                  <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Residential Address</label>
-                                    <div className="relative">
-                                      <MapPin size={18} className="absolute left-5 top-6 text-slate-300" />
-                                      <textarea required rows={3} placeholder="Street name, Area, City" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all resize-none"></textarea>
+                                      <input required type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="name@domain.com" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
                                     </div>
                                   </div>
                                 </div>
                               </div>
+
+                              {/* CONTACT & EMERGENCY SECTION */}
+                              <div className="space-y-8">
+                                <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
+                                  <MapPin size={24} className="text-femac-900" />
+                                  <h5 className="font-black uppercase tracking-widest text-lg">Contact & Emergency Node</h5>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                  <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Residential Address</label>
+                                    <div className="relative">
+                                      <MapPin size={18} className="absolute left-5 top-6 text-slate-300" />
+                                      <textarea required rows={3} value={formAddress} onChange={(e) => setFormAddress(e.target.value)} placeholder="Street name, Area, City" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all resize-none"></textarea>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Secondary Emergency Contact</label>
+                                    <input type="text" value={formEmergencyName} onChange={(e) => setFormEmergencyName(e.target.value)} placeholder="Full Name" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Emergency Phone</label>
+                                    <div className="relative">
+                                      <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                      <input type="tel" value={formEmergencyPhone} onChange={(e) => setFormEmergencyPhone(e.target.value)} placeholder="09xx xxx xxx" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
                               <div className="pt-10">
                                 <div className="flex items-start space-x-4 p-6 bg-slate-900 text-white rounded-[2rem] shadow-2xl mb-12">
                                   <div className="shrink-0 bg-femac-yellow p-3 rounded-xl"><AlertCircle size={24} className="text-slate-900" /></div>
@@ -483,112 +911,6 @@ const App: React.FC = () => {
       </footer>
     </div>
   );
-
-  if (view === 'login') {
-    const rolesToShow = [UserRole.PUPIL, UserRole.PARENT, UserRole.TEACHER, UserRole.EXAMS_OFFICE, UserRole.EXECUTIVE_ACCOUNTS];
-    const teacherUserIds = ['U-TEA-G1', 'U-TEA-G2', 'U-TEA-G3', 'U-TEA-G4', 'U-TEA-G5', 'U-TEA-G6', 'U-TEA-G7', 'U-TEA-F1'];
-    const teacherUsers = MOCK_USERS.filter(u => teacherUserIds.includes(u.id));
-    return (
-      <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none">
-          <img src={LOGO_URL} alt="" className="w-[800px] h-[800px] object-contain" />
-        </div>
-        <div className="bg-white rounded-[3rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.3)] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative z-10 border border-white/40">
-           <div className="md:w-1/2 bg-femac-900 p-16 text-white flex flex-col justify-center relative overflow-hidden">
-             <div className="absolute -top-24 -left-24 w-72 h-72 bg-femac-yellow opacity-10 rounded-full blur-[120px]"></div>
-             <button onClick={() => { setView('website'); setPendingUser(null); setLoginStep('role'); }} className="absolute top-10 left-10 text-femac-400 hover:text-white flex items-center text-xs font-black uppercase tracking-[0.25em] transition-all group">
-               <span className="mr-2 group-hover:-translate-x-1 transition-transform">←</span> Return Home
-             </button>
-             <div className="mb-12">
-               <img src={LOGO_URL} alt="Logo" className="w-32 h-32 mb-10 object-contain filter drop-shadow-[0_0_20px_rgba(250,204,21,0.2)]" />
-               <h1 className="text-7xl font-black mb-2 tracking-tighter relative text-femac-yellow leading-none uppercase">FAIMS<span className="text-white">.</span></h1>
-               <p className="text-femac-300 text-lg font-black uppercase tracking-[0.4em] opacity-80">Portal Access</p>
-             </div>
-           </div>
-           <div className="md:w-1/2 p-16 flex flex-col justify-center bg-white/95 backdrop-blur-sm relative">
-             {loginStep === 'role' ? (
-               <>
-                 <h2 className="text-4xl font-black text-slate-800 mb-3 tracking-tighter">System Access.</h2>
-                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-10">Select an authorized role to proceed</p>
-                 <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-                   {rolesToShow.map(role => (
-                     <button key={role} onClick={() => handleRoleSelect(role)} className="w-full flex items-center justify-between p-6 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group active:scale-[0.98] shadow-sm hover:shadow-lg">
-                       <div className="flex items-center space-x-5">
-                          <div className="bg-slate-100 p-4 rounded-2xl group-hover:bg-femac-yellow transition-colors"><Key size={22} className="text-slate-500 group-hover:text-femac-900 transition-colors"/></div>
-                          <div className="text-left"><p className="font-black text-xl text-slate-800 group-hover:text-femac-900 leading-none mb-1 uppercase tracking-tight">{getRoleDisplayLabel(role)}</p><p className="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-black">Authorized Portal</p></div>
-                       </div>
-                       <ChevronRight className="text-slate-300 group-hover:text-femac-900 group-hover:translate-x-1 transition-all" size={24} />
-                     </button>
-                   ))}
-                 </div>
-               </>
-             ) : loginStep === 'grade' ? (
-               <div className="animate-in slide-in-from-right duration-300">
-                 <button onClick={() => setLoginStep('role')} className="mb-8 flex items-center text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-femac-900 transition-colors"><ArrowLeft size={14} className="mr-2" /> Return to Roles</button>
-                 <h2 className="text-4xl font-black text-slate-800 mb-3 tracking-tighter uppercase leading-none">Teacher <span className="text-femac-yellow">Registry</span></h2>
-                 <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-10">Identify your assigned Grade Level</p>
-                 <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                   {teacherUsers.map(u => (
-                      <button key={u.id} onClick={() => handleGradeSelect(u.id)} className="w-full flex items-center justify-between p-5 border-2 border-slate-100 rounded-[1.5rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group active:scale-[0.98] shadow-sm">
-                        <div className="flex items-center space-x-5">
-                           <div className="bg-femac-900 p-3 rounded-xl group-hover:bg-femac-yellow transition-colors"><School size={18} className="text-femac-yellow group-hover:text-femac-900 transition-colors"/></div>
-                           <p className="font-black text-lg text-slate-800 uppercase tracking-tight">{u.name}</p>
-                        </div>
-                        <ChevronRight className="text-slate-300 group-hover:text-femac-900" size={20} />
-                      </button>
-                   ))}
-                 </div>
-               </div>
-             ) : (
-               <div className="animate-in slide-in-from-right duration-300">
-                 <button onClick={() => setLoginStep('grade')} className="mb-8 flex items-center text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-femac-900 transition-colors"><ArrowLeft size={14} className="mr-2" /> Change Grade</button>
-                 <div className="flex items-center space-x-5 mb-10">
-                    <div className="w-20 h-20 bg-femac-900 rounded-2xl border-4 border-femac-yellow flex items-center justify-center text-femac-yellow font-black text-2xl uppercase">
-                      <UserIcon size={32} />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-800 leading-none mb-1 uppercase tracking-tight">{pendingUser?.name}</h2>
-                      <p className="text-[10px] text-femac-500 uppercase tracking-[0.3em] font-black">Personal Registry Secure Key</p>
-                    </div>
-                 </div>
-                 <form onSubmit={handleTeacherLoginSubmit} className="space-y-6">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center">
-                         <Lock size={12} className="mr-1 text-femac-yellow" /> Personal Access Password
-                       </label>
-                       <div className="relative">
-                          <input 
-                            required autoFocus type={showPassword ? "text" : "password"} value={password} onChange={(e) => { setPassword(e.target.value); setLoginError(false); }}
-                            className={`w-full p-5 pr-14 bg-slate-50 border-2 rounded-2xl focus:ring-4 focus:ring-femac-yellow/10 outline-none font-bold text-slate-700 transition-all ${loginError ? 'border-red-500' : 'border-slate-100 focus:border-femac-yellow'}`}
-                            placeholder="••••••••"
-                          />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-femac-900">{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button>
-                       </div>
-                    </div>
-                    {loginError && <p className="text-[10px] text-red-500 font-black uppercase tracking-widest mt-2 flex items-center"><AlertCircle size={12} className="mr-1" /> Authentication Failed.</p>}
-                    <button type="submit" className="w-full bg-femac-900 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl hover:bg-femac-800 transition-all transform active:scale-95 flex items-center justify-center space-x-3"><span>Grant Access</span><ShieldCheck size={20} className="text-femac-yellow" /></button>
-                 </form>
-               </div>
-             )}
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'portal' && user) {
-    const renderContent = () => {
-      if (user.role === UserRole.TEACHER) return <TeacherPortal currentUser={user} />;
-      if (user.role === UserRole.EXAMS_OFFICE) return <ExamsPortal />;
-      if (user.role === UserRole.PARENT) return <ParentPortal activePage={activePage} />;
-      if (user.role === UserRole.PUPIL) return <StudentPortal />;
-      if (user.role === UserRole.EXECUTIVE_ACCOUNTS) return <ExecutiveAccountsPortal />;
-      return <div className="p-10 text-center"><h2 className="text-3xl font-black text-slate-300 uppercase tracking-widest mt-20">Access Restricted</h2></div>;
-    };
-    return <Layout user={user} onLogout={handleLogout} onGoHome={handleGoHome} activePage={activePage} onNavigate={setActivePage}>{renderContent()}</Layout>;
-  }
-
-  return <LandingPage />;
 };
 
 export default App;

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { 
@@ -42,7 +43,6 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
         ];
       case UserRole.EXECUTIVE_ACCOUNTS:
         return [
-          { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
           { id: 'financials', label: 'Financials', icon: DollarSign },
           { id: 'staff', label: 'Staffing', icon: Briefcase },
           { id: 'growth', label: 'Growth', icon: TrendingUp },

@@ -29,6 +29,24 @@ export interface User {
   avatar?: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  senderRole: UserRole;
+  text: string;
+  timestamp: string;
+  isAi?: boolean;
+}
+
+export interface ChatSession {
+  id: string;
+  parentId: string;
+  parentName: string;
+  status: 'AI_ONLY' | 'REQUESTED' | 'ACTIVE' | 'CLOSED';
+  messages: ChatMessage[];
+  lastActivity: string;
+}
+
 export interface StaffMember extends User {
   duties: string;
   salary: number;

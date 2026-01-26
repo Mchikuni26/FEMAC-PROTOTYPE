@@ -2,7 +2,8 @@
 import { 
   GradeRecord, GradeStatus, Assignment, FeeTransaction, 
   Student, ApplicationStatus, PaymentNotification, AssessmentType,
-  StudentReport, SubjectPerformance, StaffMember, FinancialYearSummary, InstitutionalExpense 
+  StudentReport, SubjectPerformance, StaffMember, FinancialYearSummary, InstitutionalExpense,
+  ChatSession, ChatMessage, UserRole 
 } from '../types';
 import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES, MOCK_STUDENTS, MOCK_CLASSES, MOCK_STAFF } from '../constants';
 
@@ -14,6 +15,7 @@ let studentsStore = [...MOCK_STUDENTS];
 let staffStore = [...MOCK_STAFF];
 let notificationsStore: PaymentNotification[] = [];
 let reportsStore: StudentReport[] = [];
+let chatSessionsStore: ChatSession[] = [];
 
 let historicalYearsStore: FinancialYearSummary[] = [
   { year: 2023, totalRevenue: 850000, totalExpenses: 420000, grossProfit: 850000, netProfit: 430000, totalSalaries: 380000, operationalCosts: 40000, studentCount: 180 },
@@ -28,6 +30,65 @@ let institutionalExpenses: InstitutionalExpense[] = [
 ];
 
 export const MockDB = {
+  // Chat Logic
+  getChatSessions: () => [...chatSessionsStore],
+  
+  getChatSessionByParent: (parentId: string, parentName: string) => {
+    let session = chatSessionsStore.find(s => s.parentId === parentId && s.status !== 'CLOSED');
+    if (!session) {
+      session = {
+        id: `chat-${Date.now()}`,
+        parentId,
+        parentName,
+        status: 'AI_ONLY',
+        messages: [],
+        lastActivity: new Date().toISOString()
+      };
+      chatSessionsStore.push(session);
+    }
+    return session;
+  },
+
+  sendMessage: (sessionId: string, senderId: string, role: UserRole, text: string, isAi: boolean = false) => {
+    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
+    if (sessionIdx !== -1) {
+      const msg: ChatMessage = {
+        id: `msg-${Date.now()}`,
+        senderId,
+        senderRole: role,
+        text,
+        timestamp: new Date().toLocaleTimeString(),
+        isAi
+      };
+      chatSessionsStore[sessionIdx].messages.push(msg);
+      chatSessionsStore[sessionIdx].lastActivity = new Date().toISOString();
+      return msg;
+    }
+    return null;
+  },
+
+  requestExecutive: (sessionId: string) => {
+    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
+    if (sessionIdx !== -1) {
+      chatSessionsStore[sessionIdx].status = 'REQUESTED';
+    }
+  },
+
+  acceptChatRequest: (sessionId: string) => {
+    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
+    if (sessionIdx !== -1) {
+      chatSessionsStore[sessionIdx].status = 'ACTIVE';
+    }
+  },
+
+  closeChat: (sessionId: string) => {
+    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
+    if (sessionIdx !== -1) {
+      chatSessionsStore[sessionIdx].status = 'CLOSED';
+    }
+  },
+
+  // Rest of Existing Methods
   getGrowthMetrics: () => {
     const currentYear = new Date().getFullYear();
     const verifiedPayments = feesStore.filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + Math.abs(curr.amount), 0);
@@ -188,12 +249,12 @@ export const MockDB = {
 
   getFeesByStudent: (studentId: string) => feesStore.filter(f => f.studentId === studentId),
   
-  makePayment: (studentId: string, amount: number) => {
+  makePayment: (studentId: string, amount: number, description?: string) => {
     const newTxn: FeeTransaction = {
       id: `txn-${Date.now()}`,
       studentId,
       date: new Date().toISOString().split('T')[0],
-      description: 'Institutional Fee Settlement',
+      description: description || 'Institutional Fee Settlement',
       amount: -amount,
       type: 'PAYMENT'
     };

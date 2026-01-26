@@ -44,6 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
       case UserRole.EXECUTIVE_ACCOUNTS:
         return [
           { id: 'financials', label: 'Financials', icon: DollarSign },
+          { id: 'messages', label: 'Executive Chat', icon: MessageCircle },
           { id: 'staff', label: 'Staffing', icon: Briefcase },
           { id: 'growth', label: 'Growth', icon: TrendingUp },
         ];

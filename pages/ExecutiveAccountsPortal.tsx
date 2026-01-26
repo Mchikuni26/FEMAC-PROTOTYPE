@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   DollarSign, Users, TrendingUp, ArrowUpRight, ArrowDownRight, CreditCard, PieChart, Briefcase, FileText, Search, User as UserIcon, ChevronRight, X, MapPin, Calendar, ShieldCheck, Download, UserPlus, CheckCircle, XCircle, FileCheck, Phone, Mail, UserCheck, Clock, User as UserLarge, BellRing,
-  Send, Sparkles, CheckCircle2, ShieldAlert, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, Award, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, BarChart3, TrendingDown, Plus, Tag
+  Send, Sparkles, CheckCircle2, ShieldAlert, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, Award, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, BarChart3, TrendingDown, Plus, Tag, MessageCircle, Headphones, Bot, MessageSquare
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { MockDB } from '../services/mockDb';
-import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense } from '../types';
+import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession } from '../types';
 
 interface ExecutiveAccountsPortalProps {
   activePage?: string;
@@ -20,6 +20,9 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
   const [notifications, setNotifications] = useState<PaymentNotification[]>(MockDB.getNotifications());
   const [growthData, setGrowthData] = useState<{current: FinancialYearSummary, history: FinancialYearSummary[]}>(MockDB.getGrowthMetrics());
   const [expenses, setExpenses] = useState<InstitutionalExpense[]>(MockDB.getExpenses());
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(MockDB.getChatSessions());
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [msgInput, setMsgInput] = useState('');
   
   // Internal sub-tabs for specific domains
   const [financialSubTab, setFinancialSubTab] = useState<'registry' | 'notifications'>('registry');
@@ -38,6 +41,7 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
     setStaff(MockDB.getStaff());
     setGrowthData(MockDB.getGrowthMetrics());
     setExpenses(MockDB.getExpenses());
+    setChatSessions(MockDB.getChatSessions());
   };
 
   useEffect(() => {
@@ -56,6 +60,20 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
         setTimeout(() => setShowEnrolledNote(false), 5000);
       }
     }
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeChatId || !msgInput.trim()) return;
+    MockDB.sendMessage(activeChatId, 'EXE-001', UserRole.EXECUTIVE_ACCOUNTS, msgInput.trim());
+    setMsgInput('');
+    setChatSessions(MockDB.getChatSessions());
+  };
+
+  const handleAcceptChat = (sid: string) => {
+    MockDB.acceptChatRequest(sid);
+    setActiveChatId(sid);
+    refreshData();
   };
 
   const handleVerifyPayment = (notifId: string) => {
@@ -147,6 +165,8 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
     net: h.netProfit
   }));
 
+  const activeChat = chatSessions.find(s => s.id === activeChatId);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       {showEnrolledNote && (
@@ -156,6 +176,111 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
               <div>
                  <p className="font-black uppercase tracking-tight text-sm">Pupil Fully Synchronized</p>
                  <p className="text-[10px] font-bold mt-1 opacity-90 leading-relaxed uppercase">Details propagate to all Teacher & Exam Registries instantly.</p>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Domain: MESSAGES / CHAT HUB */}
+      {activePage === 'messages' && (
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 h-[700px] flex flex-col">
+           <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-3xl font-black text-femac-900 tracking-tighter uppercase leading-none">Executive Chat Hub</h2>
+                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-2">Parent Inquiries & Live Node Assistance</p>
+              </div>
+              <div className="bg-femac-yellow text-femac-900 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center shadow-lg animate-pulse">
+                <Headphones size={16} className="mr-2" /> Live Queue: {chatSessions.filter(s => s.status === 'REQUESTED').length}
+              </div>
+           </div>
+
+           <div className="flex-1 bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden flex">
+              <div className="w-80 border-r border-slate-50 flex flex-col">
+                 <div className="p-6 bg-slate-50 border-b border-slate-100">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Communication Registry</p>
+                 </div>
+                 <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {chatSessions.length > 0 ? chatSessions.map(session => (
+                      <button 
+                        key={session.id} 
+                        onClick={() => setActiveChatId(session.id)}
+                        className={`w-full p-6 text-left border-b border-slate-50 transition-all flex items-center space-x-4 ${activeChatId === session.id ? 'bg-femac-50/50' : 'hover:bg-slate-50'}`}
+                      >
+                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm uppercase ${session.status === 'REQUESTED' ? 'bg-femac-yellow text-femac-900 animate-pulse' : 'bg-femac-900 text-femac-yellow'}`}>
+                            {session.parentName[0]}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                              <p className="font-black text-femac-900 uppercase text-xs truncate">{session.parentName}</p>
+                              {session.status === 'REQUESTED' && <div className="w-2 h-2 bg-femac-yellow rounded-full"></div>}
+                            </div>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Status: {session.status.replace('_', ' ')}</p>
+                         </div>
+                      </button>
+                    )) : (
+                      <div className="p-10 text-center opacity-30">
+                        <MessageSquare className="mx-auto mb-4" size={48} />
+                        <p className="text-[10px] font-black uppercase tracking-widest">No Active Nodes</p>
+                      </div>
+                    )}
+                 </div>
+              </div>
+
+              <div className="flex-1 flex flex-col bg-slate-50/20">
+                 {activeChat ? (
+                   <>
+                     <div className="p-6 bg-white border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                           <div className="w-10 h-10 bg-femac-900 rounded-xl flex items-center justify-center text-femac-yellow font-black uppercase">{activeChat.parentName[0]}</div>
+                           <div>
+                              <p className="font-black text-femac-900 uppercase text-sm tracking-tight">{activeChat.parentName}</p>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">ID: {activeChat.parentId}</p>
+                           </div>
+                        </div>
+                        {activeChat.status === 'REQUESTED' && (
+                          <button onClick={() => handleAcceptChat(activeChat.id)} className="bg-femac-900 text-white px-6 py-2.5 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-lg">
+                            Accept Request
+                          </button>
+                        )}
+                     </div>
+                     <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                        {activeChat.messages.map(m => (
+                          <div key={m.id} className={`flex ${m.senderRole === UserRole.PARENT ? 'justify-start' : 'justify-end'}`}>
+                             <div className={`max-w-[70%] p-5 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${m.senderRole === UserRole.PARENT ? 'bg-white text-slate-700 rounded-bl-none border border-slate-100' : 'bg-femac-900 text-white rounded-br-none'}`}>
+                                {m.text}
+                                <div className={`text-[8px] mt-2 font-black uppercase tracking-widest opacity-40 ${m.senderRole === UserRole.PARENT ? 'text-slate-400' : 'text-femac-300'}`}>
+                                   {m.timestamp} {m.isAi ? '• AI ASSISTANT' : ''}
+                                </div>
+                             </div>
+                          </div>
+                        ))}
+                     </div>
+                     {(activeChat.status === 'ACTIVE' || activeChat.status === 'REQUESTED') && (
+                       <form onSubmit={handleSendMessage} className="p-6 bg-white border-t border-slate-100">
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={msgInput}
+                              onChange={(e) => setMsgInput(e.target.value)}
+                              placeholder="Respond to parent..."
+                              className="w-full pl-6 pr-20 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-sm text-slate-700 focus:border-femac-yellow transition-all shadow-inner"
+                            />
+                            <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 bg-femac-900 text-femac-yellow px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all">
+                              Send Node
+                            </button>
+                          </div>
+                       </form>
+                     )}
+                   </>
+                 ) : (
+                   <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
+                      <div className="w-32 h-32 bg-slate-50 text-slate-200 rounded-[3rem] flex items-center justify-center mb-10">
+                        <MessageCircle size={64} className="opacity-10" />
+                      </div>
+                      <h4 className="text-3xl font-black text-slate-200 uppercase tracking-tighter leading-none">Select a Registry Thread</h4>
+                      <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-4">Identify a chat node from the sidebar to begin administrative correspondence</p>
+                   </div>
+                 )}
               </div>
            </div>
         </div>
@@ -183,7 +308,7 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
                     Verification Node
                     {notifications.filter(n => n.status === 'PENDING').length > 0 && (
                       <span className="absolute -top-1 -right-1 w-5 h-5 bg-femac-yellow text-femac-900 rounded-full flex items-center justify-center text-[8px] font-black shadow-lg animate-bounce">
-                        {notifications.filter(n => n.status === 'PENDING').length}
+                        {notifications.filter(n => n.status === 'PENDING') .length}
                       </span>
                     )}
                 </button>
@@ -850,3 +975,11 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
     </div>
   );
 };
+
+/* Missing icons added for the refined UI */
+const SearchCode = ({ size, className, ...props }: any) => (
+  <div className={`flex items-center justify-center ${className}`} {...props}>
+    <Search size={size} className="absolute" />
+    <ShieldCheck size={size * 0.5} className="relative translate-y-2 translate-x-2" />
+  </div>
+);

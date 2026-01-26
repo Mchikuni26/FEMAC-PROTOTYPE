@@ -2,18 +2,154 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MOCK_STUDENTS, MOCK_ASSIGNMENTS } from '../constants';
 import { MockDB } from '../services/mockDb';
-import { GradeRecord, GradeStatus, FeeTransaction, Student } from '../types';
+import { GradeRecord, GradeStatus, FeeTransaction, Student, ChatSession, UserRole } from '../types';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { 
   DollarSign, Download, AlertTriangle, CreditCard, X, Calendar, FileText, 
   Search, User, ChevronRight, ShieldCheck, UserCheck, Lock, Smartphone, 
   Landmark, Info, CheckCircle, ArrowRight, ShieldAlert, Zap, Printer, TrendingUp, BellRing,
-  CheckCircle2, Loader2, Sparkles, Send
+  CheckCircle2, Loader2, Sparkles, Send, MessageSquare, Plus, ShoppingCart, MessageCircle, Bot, Headphones
 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 
 interface ParentPortalProps {
   activePage?: string;
 }
+
+const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ parentId, parentName }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [session, setSession] = useState<ChatSession | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSession(MockDB.getChatSessionByParent(parentId, parentName));
+  }, [parentId, parentName, isOpen]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [session?.messages]);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || !session) return;
+
+    const userMsg = input.trim();
+    setInput('');
+    MockDB.sendMessage(session.id, parentId, UserRole.PARENT, userMsg);
+    setSession({...MockDB.getChatSessionByParent(parentId, parentName)});
+
+    if (session.status === 'AI_ONLY') {
+      setIsTyping(true);
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: userMsg,
+          config: {
+            systemInstruction: `You are the FEMAC Academy Assistant. 
+            The parent's name is ${parentName}.
+            Basic Info:
+            - Fees: Primary K3500, Junior K4800, Senior K6200 per term.
+            - Location: Plot 442 Katuba 17miles, Great North Road, Central, Zambia.
+            - Enrollment for 2026 is OPEN.
+            - If they need to speak to a real person or an executive, tell them to click the "Request Executive" button in the chat.
+            Be professional, concise, and helpful.`,
+          },
+        });
+        
+        MockDB.sendMessage(session.id, 'AI-001', UserRole.EXECUTIVE_ACCOUNTS, response.text || 'I am sorry, I am having trouble connecting.', true);
+        setSession({...MockDB.getChatSessionByParent(parentId, parentName)});
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsTyping(false);
+      }
+    }
+  };
+
+  const handleEscalate = () => {
+    if (session) {
+      MockDB.requestExecutive(session.id);
+      MockDB.sendMessage(session.id, 'SYSTEM', UserRole.EXECUTIVE_ACCOUNTS, "A request has been sent to the Executive Node. Please wait for an administrator to join.", true);
+      setSession({...MockDB.getChatSessionByParent(parentId, parentName)});
+    }
+  };
+
+  return (
+    <div className="fixed bottom-10 right-10 z-[100] flex flex-col items-end">
+      {isOpen && (
+        <div className="mb-6 w-96 h-[550px] bg-white rounded-[2.5rem] shadow-[0_40px_100px_-20px_rgba(16,42,67,0.4)] border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in slide-in-from-bottom-10 duration-500">
+          <div className="bg-femac-900 p-8 text-white flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-femac-yellow rounded-2xl flex items-center justify-center text-femac-900 shadow-lg">
+                <Bot size={24} />
+              </div>
+              <div>
+                <p className="text-xl font-black tracking-tight uppercase">School Hub</p>
+                <p className="text-[9px] font-black uppercase text-femac-400 tracking-widest">Live Assistance Active</p>
+              </div>
+            </div>
+            <button onClick={() => setIsOpen(false)} className="text-femac-300 hover:text-white"><X size={24}/></button>
+          </div>
+
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-slate-50/30">
+            {session?.messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.senderId === parentId ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] p-4 rounded-2xl text-xs font-bold leading-relaxed shadow-sm ${msg.senderId === parentId ? 'bg-femac-900 text-white rounded-br-none' : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none'}`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white p-4 rounded-2xl shadow-sm flex items-center space-x-2">
+                   <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce"></div>
+                   <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                   <div className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {session?.status === 'AI_ONLY' && (
+            <div className="px-6 py-2">
+              <button onClick={handleEscalate} className="w-full bg-slate-50 border border-slate-100 text-femac-900 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center hover:bg-femac-yellow/10 transition-colors">
+                <Headphones size={14} className="mr-2" /> Request Executive Node
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleSend} className="p-6 border-t border-slate-100 bg-white">
+            <div className="relative">
+              <input 
+                type="text" 
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your message..."
+                className="w-full pl-6 pr-14 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-sm text-slate-700 focus:border-femac-yellow transition-all"
+              />
+              <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 bg-femac-900 text-femac-yellow p-2.5 rounded-xl hover:bg-femac-yellow hover:text-femac-900 transition-all">
+                <Send size={18} />
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-20 h-20 bg-femac-900 text-femac-yellow rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(16,42,67,0.4)] border-4 border-femac-yellow/20 hover:scale-110 active:scale-95 transition-all relative group"
+      >
+        {isOpen ? <X size={32} /> : <MessageCircle size={32} />}
+        {!isOpen && <div className="absolute inset-0 rounded-[2rem] bg-femac-yellow/20 animate-ping"></div>}
+      </button>
+    </div>
+  );
+};
 
 export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   const parentStudents = MOCK_STUDENTS.filter(s => s.parentId === 'U-PAR-001');
@@ -28,6 +164,10 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   const [selectedMethod, setSelectedMethod] = useState<'momo' | 'bank' | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [notificationSent, setNotificationSent] = useState(false);
+  
+  // Custom Payment State
+  const [paymentAmount, setPaymentAmount] = useState<string>('');
+  const [paymentDescription, setPaymentDescription] = useState<string>('');
   
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -61,14 +201,27 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   // Results are locked if balance is pending OR if executive hasn't verified the payment
   const isLockedForResults = isBalancePending || !activeStudent.resultsUnlocked;
 
+  const handleOpenPayment = (type: 'settle' | 'new') => {
+    if (type === 'settle') {
+      setPaymentAmount(balance.toString());
+      setPaymentDescription('Institutional Fee Settlement');
+    } else {
+      setPaymentAmount('');
+      setPaymentDescription('');
+    }
+    setPaymentStep('method');
+    setShowPayModal(true);
+    setNotificationSent(false);
+  };
+
   const handlePayment = () => {
+    if (!paymentAmount || parseFloat(paymentAmount) <= 0) return;
     setIsProcessing(true);
     setTimeout(() => {
-        MockDB.makePayment(activeStudentId, balance);
+        MockDB.makePayment(activeStudentId, parseFloat(paymentAmount), paymentDescription);
         refreshRegistryData();
         setIsProcessing(false);
         setPaymentStep('success');
-        setNotificationSent(false);
     }, 2000);
   };
 
@@ -77,9 +230,9 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
     setTimeout(() => {
         MockDB.sendPaymentNotification({
             studentId: activeStudentId,
-            amount: Math.abs(fees.filter(f => f.type === 'PAYMENT').reduce((a,b) => a + b.amount, 0)),
+            amount: parseFloat(paymentAmount),
             method: selectedMethod === 'momo' ? 'MOMO' : 'BANK',
-            details: selectedMethod === 'momo' ? 'Airtel Merchant Ref: 0772705347' : 'Bank Transfer - Great North Branch'
+            details: `${paymentDescription} - ${selectedMethod === 'momo' ? 'Airtel Merchant Ref' : 'Bank Transfer'}`
         });
         setIsProcessing(false);
         setNotificationSent(true);
@@ -112,6 +265,8 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+      <FloatingChatBot parentId="U-PAR-001" parentName="Registry Parent" />
+      
       <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-femac-yellow/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
         <div className="flex items-center space-x-6 relative z-10">
@@ -192,9 +347,16 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
                    <h3 className="text-3xl font-black text-femac-900 uppercase tracking-tighter flex items-center"><DollarSign className="mr-3 text-femac-yellow" size={32}/> Financial Ledger</h3>
                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2">Verified Institutional Billing Node</p>
                  </div>
-                 <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-right min-w-[240px]">
-                   <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-1">Total Outstanding Registry Balance</p>
-                   <p className={`text-4xl font-black tracking-tighter ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>K {balance.toLocaleString()}</p>
+                 <div className="flex flex-col items-end gap-2">
+                    <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 text-right min-w-[240px]">
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-1">Total Outstanding Registry Balance</p>
+                      <p className={`text-4xl font-black tracking-tighter ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>K {balance.toLocaleString()}</p>
+                    </div>
+                    {balance <= 0 && (
+                      <span className="flex items-center text-[10px] font-black uppercase tracking-widest text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-100">
+                        <CheckCircle2 size={12} className="mr-2" /> All Node Liabilities Settled
+                      </span>
+                    )}
                  </div>
               </div>
               
@@ -217,22 +379,31 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
                 ))}
               </div>
               
-              {balance > 0 && (
+              <div className="flex gap-4">
+                {balance > 0 && (
+                  <button 
+                    onClick={() => handleOpenPayment('settle')} 
+                    className="flex-1 bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.3em] text-lg shadow-2xl hover:bg-femac-yellow hover:text-femac-900 transition-all flex justify-center items-center active:scale-[0.98]"
+                  >
+                    <CreditCard className="mr-3" size={24} /> Settle Balance
+                  </button>
+                )}
                 <button 
-                  onClick={() => { setPaymentStep('method'); setShowPayModal(true); }} 
-                  className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.3em] text-lg shadow-2xl hover:bg-femac-yellow hover:text-femac-900 transition-all flex justify-center items-center active:scale-[0.98]"
+                  onClick={() => handleOpenPayment('new')} 
+                  className={`flex-1 py-6 rounded-[2rem] font-black uppercase tracking-[0.3em] text-lg transition-all flex justify-center items-center active:scale-[0.98] ${balance <= 0 ? 'bg-femac-900 text-white shadow-2xl' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
-                  <CreditCard className="mr-3" size={24} /> Settle Registry Balance
+                  <Plus className="mr-3" size={24} /> Miscellaneous Payment
                 </button>
-              )}
+              </div>
           </div>
 
           <div className="space-y-8">
-              <div className="bg-femac-900 p-10 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden">
+              <div className="bg-femac-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
                   <h4 className="text-xl font-black uppercase tracking-tight mb-6 flex items-center"><ShieldAlert className="mr-3 text-femac-yellow" /> Payment Policy</h4>
                   <div className="space-y-6">
                       <p className="text-[10px] font-black uppercase tracking-widest leading-loose opacity-80"><span className="text-white">Verification Mandate:</span> After payment, parents must send a notification to Executive Accounts for instant result unlocking.</p>
                       <p className="text-[10px] font-black uppercase tracking-widest leading-loose opacity-80"><span className="text-white">Authorisation:</span> Results only unlock after executive registry confirms payment hashes.</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest leading-loose opacity-80"><span className="text-white">Special Fees:</span> Use the "Miscellaneous Payment" option for tours, exams, or events.</p>
                   </div>
               </div>
           </div>
@@ -258,7 +429,7 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
                   Results for <span className="text-femac-900 font-black">{activeStudent.firstName} {activeStudent.lastName}</span> are locked. 
                   {isBalancePending ? " Please settle the outstanding balance and notify Executive Accounts." : " Awaiting final verification token from Executive Accounts."}
                 </p>
-                <button onClick={() => { setPaymentStep('method'); setShowPayModal(true); }} className="px-10 py-5 bg-femac-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center hover:bg-femac-yellow hover:text-femac-900 transition-all">Settle Fees Portal <ArrowRight size={16} className="ml-3" /></button>
+                <button onClick={() => handleOpenPayment('settle')} className="px-10 py-5 bg-femac-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-xs flex items-center justify-center hover:bg-femac-yellow hover:text-femac-900 transition-all">Settle Fees Portal <ArrowRight size={16} className="ml-3" /></button>
               </div>
             ) : grades.length > 0 ? (
                <div className="flex-1 flex flex-col animate-in fade-in duration-700">
@@ -289,54 +460,128 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
       
       {showPayModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/95 backdrop-blur-2xl animate-in fade-in duration-300">
-          <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-xl overflow-hidden relative p-10 text-center animate-in zoom-in duration-300">
-            <button onClick={() => { if(!isProcessing) setShowPayModal(false); }} className="absolute top-10 right-10 text-slate-400 hover:text-femac-900"><X size={32} /></button>
+          <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-2xl overflow-hidden relative p-12 text-center animate-in zoom-in duration-300">
+            <button onClick={() => { if(!isProcessing) setShowPayModal(false); }} className="absolute top-10 right-10 text-slate-300 hover:text-femac-900 transition-colors"><X size={32} /></button>
             
             {paymentStep === 'method' && (
-                <div className="py-6">
-                    <h4 className="text-3xl font-black text-femac-900 uppercase tracking-tighter mb-10">Secure Gateway</h4>
-                    <div className="grid grid-cols-1 gap-4">
-                        <button onClick={() => { setSelectedMethod('momo'); setPaymentStep('confirm'); }} className="flex items-center justify-between p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow transition-all group">
-                            <div className="flex items-center space-x-5">
-                                <Smartphone size={24} className="text-femac-900" />
-                                <div className="text-left"><p className="font-black text-lg uppercase">Airtel Merchant</p><p className="text-[10px] font-bold">0772705347</p></div>
-                            </div>
-                            <ChevronRight size={24} />
+                <div className="py-6 space-y-10">
+                    <div>
+                      <h4 className="text-4xl font-black text-femac-900 uppercase tracking-tighter mb-2">Secure Gateway</h4>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Initialize Authorized Transaction</p>
+                    </div>
+
+                    <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 space-y-6 text-left">
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center">
+                            <ShoppingCart size={12} className="mr-2 text-femac-yellow" /> Transaction Amount (ZMW)
+                          </label>
+                          <input 
+                            type="number"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                            placeholder="Enter Amount..."
+                            className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-black text-2xl text-femac-900 focus:border-femac-yellow transition-all"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center">
+                            <MessageSquare size={12} className="mr-2 text-femac-yellow" /> Payment Description / Fee Icon
+                          </label>
+                          <div className="relative">
+                             <MessageSquare className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                             <select 
+                                value={paymentDescription}
+                                onChange={(e) => setPaymentDescription(e.target.value)}
+                                className="w-full pl-14 pr-5 py-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-black text-sm text-femac-900 focus:border-femac-yellow transition-all appearance-none"
+                             >
+                                <option value="">Select Fee Type...</option>
+                                <option value="Institutional Fee Settlement">Institutional Fee Settlement</option>
+                                <option value="Academic Tour Fee">Academic Tour Fee</option>
+                                <option value="Examination Entry Fees">Examination Entry Fees</option>
+                                <option value="Careers Day Contribution">Careers Day Contribution</option>
+                                <option value="Sports & Athletics Kit">Sports & Athletics Kit</option>
+                                <option value="Laboratory Access Surcharge">Laboratory Access Surcharge</option>
+                                <option value="Miscellaneous School Support">Miscellaneous School Support</option>
+                             </select>
+                             <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 rotate-90 text-slate-300 pointer-events-none" size={16} />
+                          </div>
+                          {/* Manual Text Option */}
+                          <div className="mt-3 relative">
+                            <input 
+                                type="text"
+                                value={paymentDescription}
+                                onChange={(e) => setPaymentDescription(e.target.value)}
+                                placeholder="Or type custom purpose (e.g. Science Fair)..."
+                                className="w-full p-4 bg-white border border-slate-100 rounded-xl text-[10px] font-bold text-slate-600 outline-none focus:border-femac-yellow transition-all"
+                            />
+                          </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <button disabled={!paymentAmount} onClick={() => { setSelectedMethod('momo'); setPaymentStep('confirm'); }} className="flex items-center space-x-5 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow transition-all group disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div className="p-3 bg-white rounded-xl shadow-sm group-hover:bg-femac-900 group-hover:text-femac-yellow transition-colors"><Smartphone size={24} /></div>
+                            <div className="text-left"><p className="font-black text-xs uppercase tracking-tight">Airtel MOMO</p><p className="text-[8px] font-bold text-slate-400">Merchant: 0772705347</p></div>
                         </button>
-                        <button onClick={() => { setSelectedMethod('bank'); setPaymentStep('confirm'); }} className="flex items-center justify-between p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow transition-all group">
-                            <div className="flex items-center space-x-5">
-                                <Landmark size={24} className="text-femac-900" />
-                                <div className="text-left"><p className="font-black text-lg uppercase">Bank Transfer</p><p className="text-[10px] font-bold">ZANACO • Great North Branch</p></div>
-                            </div>
-                            <ChevronRight size={24} />
+                        <button disabled={!paymentAmount} onClick={() => { setSelectedMethod('bank'); setPaymentStep('confirm'); }} className="flex items-center space-x-5 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow transition-all group disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div className="p-3 bg-white rounded-xl shadow-sm group-hover:bg-femac-900 group-hover:text-femac-yellow transition-colors"><Landmark size={24} /></div>
+                            <div className="text-left"><p className="font-black text-xs uppercase tracking-tight">Bank Transfer</p><p className="text-[8px] font-bold text-slate-400">ZANACO Great North</p></div>
                         </button>
                     </div>
                 </div>
             )}
 
             {paymentStep === 'confirm' && (
-                <div className="py-6 animate-in slide-in-from-right-4">
-                    <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 mb-10">
-                        <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Settlement for {activeStudent.id}</p>
-                        <h5 className="text-5xl font-black text-femac-900 tracking-tighter mb-4">K {balance.toLocaleString()}</h5>
+                <div className="py-6 animate-in slide-in-from-right-4 space-y-10">
+                    <div>
+                      <h4 className="text-3xl font-black text-femac-900 uppercase tracking-tighter mb-2">Final Review</h4>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Authorize Registry Settlement</p>
                     </div>
-                    <button disabled={isProcessing} onClick={handlePayment} className={`w-full py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-lg shadow-2xl transition-all flex items-center justify-center space-x-4 ${isProcessing ? 'bg-slate-100 text-slate-400' : 'bg-femac-900 text-white'}`}>
-                        {isProcessing ? <><Loader2 size={24} className="animate-spin" /><span>Processing...</span></> : <span>Authorize Payment</span>}
-                    </button>
+
+                    <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 text-left">
+                        <div className="flex items-start justify-between mb-8">
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Fee Description</p>
+                            <p className="font-black text-femac-900 text-lg uppercase tracking-tight">{paymentDescription || 'Registry Settlement'}</p>
+                          </div>
+                          <div className={`p-4 rounded-2xl ${selectedMethod === 'momo' ? 'bg-femac-900 text-femac-yellow' : 'bg-femac-900 text-white'}`}>
+                            {selectedMethod === 'momo' ? <Smartphone size={28} /> : <Landmark size={28} />}
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-200 pt-8">
+                          <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Total Transaction Node</p>
+                          <h5 className="text-6xl font-black text-femac-900 tracking-tighter">K {parseFloat(paymentAmount).toLocaleString()}</h5>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <button onClick={() => setPaymentStep('method')} className="flex-1 py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] text-slate-400 hover:text-femac-900 transition-colors">Change Method</button>
+                      <button disabled={isProcessing} onClick={handlePayment} className={`flex-[2] py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-lg shadow-2xl transition-all flex items-center justify-center space-x-4 ${isProcessing ? 'bg-slate-100 text-slate-400' : 'bg-femac-900 text-white hover:bg-femac-yellow hover:text-femac-900'}`}>
+                          {isProcessing ? <><Loader2 size={24} className="animate-spin" /><span>Processing...</span></> : <span>Authorize Transfer</span>}
+                      </button>
+                    </div>
                 </div>
             )}
 
             {paymentStep === 'success' && (
                 <div className="py-10 animate-in zoom-in duration-500">
-                    <div className="w-24 h-24 bg-green-50 text-green-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-xl"><CheckCircle2 size={56} /></div>
-                    <h4 className="text-4xl font-black text-femac-900 uppercase tracking-tight mb-4">Settlement Successful</h4>
-                    <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mb-12">Transaction hash verified. To unlock results, notify Executive Accounts.</p>
+                    <div className="w-24 h-24 bg-green-50 text-green-600 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-xl border-2 border-green-100"><CheckCircle2 size={56} /></div>
+                    <h4 className="text-4xl font-black text-femac-900 uppercase tracking-tight mb-4">Transfer Complete</h4>
+                    <p className="text-sm text-slate-500 font-bold uppercase tracking-widest mb-12 max-w-sm mx-auto">Hash verified for <span className="text-femac-900">{paymentDescription}</span>. To finalize, notify Executive Accounts node.</p>
                     
                     {!notificationSent ? (
-                      <button onClick={handleSendNotification} className="w-full py-6 bg-femac-yellow text-femac-900 rounded-[2rem] font-black uppercase tracking-[0.2em] text-lg hover:bg-femac-900 hover:text-white transition-all"><Send size={24} className="inline mr-2" /> Notify Executive Portal</button>
+                      <button onClick={handleSendNotification} className="w-full py-6 bg-femac-yellow text-femac-900 rounded-[2rem] font-black uppercase tracking-[0.2em] text-lg hover:bg-femac-900 hover:text-white transition-all shadow-2xl transform active:scale-95 flex items-center justify-center space-x-3">
+                        <Send size={24} />
+                        <span>Notify Executive Registry</span>
+                      </button>
                     ) : (
-                      <div className="bg-femac-900 text-white p-8 rounded-[2rem] shadow-2xl"><p className="text-lg font-black uppercase">Notification Sent</p><p className="text-[10px] uppercase text-femac-400">Awaiting Verification Token</p></div>
+                      <div className="bg-femac-900 text-white p-10 rounded-[3rem] shadow-2xl border border-femac-yellow/20">
+                        <p className="text-xl font-black uppercase tracking-tight text-femac-yellow mb-2">Notification Synchronized</p>
+                        <p className="text-[10px] uppercase text-femac-400 font-bold tracking-widest">Verification token pending executive review</p>
+                      </div>
                     )}
+                    <button onClick={() => setShowPayModal(false)} className="mt-8 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-femac-900">Return to Portal</button>
                 </div>
             )}
           </div>

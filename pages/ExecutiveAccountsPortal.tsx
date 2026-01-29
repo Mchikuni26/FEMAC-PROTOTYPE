@@ -1,538 +1,295 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  DollarSign, Users, TrendingUp, ArrowUpRight, ArrowDownRight, CreditCard, PieChart, Briefcase, FileText, Search, User as UserIcon, ChevronRight, X, MapPin, Calendar, ShieldCheck, Download, UserPlus, CheckCircle, XCircle, FileCheck, Phone, Mail, UserCheck, Clock, User as UserLarge, BellRing,
-  Send, Sparkles, CheckCircle2, ShieldAlert, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, Award, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, BarChart3, TrendingDown, Plus, Tag, MessageCircle, Headphones, Bot, MessageSquare, Megaphone, Upload, AlertCircle, CalendarClock, Scale, BookOpen
+  DollarSign, Users, TrendingUp, ArrowUpRight, CreditCard, Briefcase, FileText, Search, User as UserIcon, ChevronRight, X, MapPin, ShieldCheck, Download, CheckCircle, XCircle, FileCheck, User as UserLarge, BellRing, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, Plus, Tag, MessageCircle, Headphones, MessageSquare, Megaphone, Upload, AlertCircle, CalendarClock, Scale, BookOpen, UserPlus, GraduationCap, Loader2, Send, Image as ImageIcon, BarChart3, PieChart, Wallet2, ShoppingBag, BriefcaseBusiness, UserCheck2, Timer, Bot, User, Calculator, Filter, Settings, Mail, Phone, LayoutGrid, Zap, FileEdit, Headset, MessageCircleQuestion, Check, ArrowDownRight, Activity, Trophy, FileSearch, UserX, Clock
 } from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Cell, AreaChart, Area } from 'recharts';
 import { MockDB } from '../services/mockDb';
-import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession, Announcement } from '../types';
+import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession, Announcement, Student, ChatMessage, FeeTransaction, SchoolSettings } from '../types';
 
-interface ExecutiveAccountsPortalProps {
-  activePage?: string;
-}
-
-export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = ({ activePage = 'financials' }) => {
+export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ activePage = 'financials' }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [students, setStudents] = useState(MockDB.getStudents());
-  const [staff, setStaff] = useState<StaffMember[]>(MockDB.getStaff());
-  const [notifications, setNotifications] = useState<PaymentNotification[]>(MockDB.getNotifications());
-  const [growthData, setGrowthData] = useState<{current: FinancialYearSummary, history: FinancialYearSummary[]}>(MockDB.getGrowthMetrics());
-  const [expenses, setExpenses] = useState<InstitutionalExpense[]>(MockDB.getExpenses());
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>(MockDB.getChatSessions());
-  const [announcements, setAnnouncements] = useState<Announcement[]>(MockDB.getAnnouncements());
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('1');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [allFees, setAllFees] = useState<FeeTransaction[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [notifications, setNotifications] = useState<PaymentNotification[]>([]);
+  const [growthData, setGrowthData] = useState<{current: FinancialYearSummary, history: any[]} | null>(null);
+  const [expenses, setExpenses] = useState<InstitutionalExpense[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings>({ address: '', phone: '', email: '' });
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [msgInput, setMsgInput] = useState('');
-  
-  // Announcement Form State
-  const [showAnnForm, setShowAnnForm] = useState(false);
-  const [annTitle, setAnnTitle] = useState('');
-  const [annContent, setAnnContent] = useState('');
-  const [annPriority, setAnnPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL');
-  const [annImageUrl, setAnnImageUrl] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const [showAnnModal, setShowAnnModal] = useState(false);
+  const [activeGrowthTab, setActiveGrowthTab] = useState<'profit' | 'expenses' | 'net'>('profit');
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
-  // Internal sub-tabs
-  const [financialSubTab, setFinancialSubTab] = useState<'registry' | 'notifications'>('registry');
-  const [reviewTab, setReviewTab] = useState<'ledger' | 'application'>('ledger');
-  const [showEnrolledNote, setShowEnrolledNote] = useState(false);
+  // Admission Review States
+  const [selectedApplication, setSelectedApplication] = useState<Student | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // Add Expense State
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
-  const [expAmount, setExpAmount] = useState('');
-  const [expCategory, setExpCategory] = useState<InstitutionalExpense['category']>('UTILITIES');
-  const [expDescription, setExpDescription] = useState('');
+  // New Announcement Form State
+  const [newAnnTitle, setNewAnnTitle] = useState('');
+  const [newAnnContent, setNewAnnContent] = useState('');
+  const [newAnnImage, setNewAnnImage] = useState('');
+  const [newAnnPriority, setNewAnnPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL');
+  const [isSubmittingAnn, setIsSubmittingAnn] = useState(false);
 
-  const refreshData = () => {
-    setStudents(MockDB.getStudents());
-    setNotifications(MockDB.getNotifications());
-    setStaff(MockDB.getStaff());
-    setGrowthData(MockDB.getGrowthMetrics());
-    setExpenses(MockDB.getExpenses());
-    setChatSessions(MockDB.getChatSessions());
-    setAnnouncements(MockDB.getAnnouncements());
+  const refreshData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setIsRefreshing(true);
+    
+    try {
+      const [stList, st, n, g, e, cs, ann, settings] = await Promise.all([
+        MockDB.getStudents(), MockDB.getStaff(), MockDB.getNotifications(),
+        MockDB.getGrowthMetrics(), MockDB.getExpenses(), MockDB.getChatSessions(),
+        MockDB.getAnnouncements(), MockDB.getSchoolSettings()
+      ]);
+      const feePromises = stList.map(s => MockDB.getFeesByStudent(s.id));
+      const feesNested = await Promise.all(feePromises);
+      setAllFees(feesNested.flat());
+      setStudents(stList); setStaff(st); setNotifications(n); setGrowthData(g);
+      setExpenses(e); setChatSessions(cs); setAnnouncements(ann); setSchoolSettings(settings);
+    } catch (err) { console.error("Registry Sync Failure", err); }
+    finally { 
+      if (!silent) setLoading(false); 
+      setIsRefreshing(false);
+    }
   };
 
   useEffect(() => {
     refreshData();
-    setSearchTerm('');
-  }, [activePage]);
+    // Maintain 'Communication Channel' with background polling
+    const interval = setInterval(() => { refreshData(true); }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleApplicationAction = (studentId: string, status: ApplicationStatus) => {
-    let interviewDate = '';
-    if (status === ApplicationStatus.INTERVIEW) {
-      const date = prompt("Specify Physical Interview Date (Format: YYYY-MM-DD):", new Date(Date.now() + 604800000).toISOString().split('T')[0]);
-      if (!date) return;
-      interviewDate = date;
-    }
+  useEffect(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, [activeChatId, chatSessions]);
 
-    const actionText = status === ApplicationStatus.ACCEPTED ? "ACCEPT" : status === ApplicationStatus.DECLINED ? "DECLINE" : "SUBJECT TO INTERVIEW";
-    if (confirm(`Authorize registry to ${actionText} this candidate?`)) {
-      MockDB.updateStudentStatus(studentId, status, interviewDate);
+  const getStudentFinances = (studentId: string) => {
+    const studentFees = allFees.filter(f => f.studentId === studentId);
+    const totalBilled = studentFees.filter(f => f.type === 'BILL').reduce((acc, curr) => acc + curr.amount, 0);
+    const totalPaid = Math.abs(studentFees.filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + curr.amount, 0));
+    return { totalBilled, totalPaid, balance: totalBilled - totalPaid, history: studentFees };
+  };
+
+  const handleAcceptChat = async (sessionId: string) => { 
+    await MockDB.acceptChatRequest(sessionId); 
+    await MockDB.sendMessage(sessionId, 'EXE-ADMIN', UserRole.EXECUTIVE_ACCOUNTS, "I have joined. How can I assist?", false); 
+    setActiveChatId(sessionId);
+    refreshData(); 
+  };
+
+  const handleCloseChat = async (sessionId: string) => {
+    if (confirm("Close this support session?")) {
+      await MockDB.closeChat(sessionId);
+      setActiveChatId(null);
       refreshData();
-      if (status === ApplicationStatus.ACCEPTED) {
-        setShowEnrolledNote(true);
-        setTimeout(() => setShowEnrolledNote(false), 5000);
+    }
+  };
+
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !activeChatId) return;
+    await MockDB.sendMessage(activeChatId, 'EXE-ADMIN', UserRole.EXECUTIVE_ACCOUNTS, chatInput.trim(), false);
+    setChatInput('');
+    const sessions = await MockDB.getChatSessions();
+    setChatSessions(sessions);
+  };
+
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAnnTitle || !newAnnContent) return;
+    setIsSubmittingAnn(true);
+    try {
+      await MockDB.addAnnouncement({
+        title: newAnnTitle.toUpperCase(),
+        content: newAnnContent,
+        imageUrl: newAnnImage || undefined,
+        priority: newAnnPriority
+      });
+      setNewAnnTitle(''); setNewAnnContent(''); setNewAnnImage(''); setNewAnnPriority('NORMAL');
+      const updatedAnn = await MockDB.getAnnouncements();
+      setAnnouncements(updatedAnn);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingAnn(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (confirm("Delete this broadcast from the registry?")) {
+      await MockDB.deleteAnnouncement(id);
+      const updatedAnn = await MockDB.getAnnouncements();
+      setAnnouncements(updatedAnn);
+    }
+  };
+
+  const handleUpdateApplicationStatus = async (id: string, status: ApplicationStatus) => {
+    const msg = status === ApplicationStatus.ACCEPTED ? 'ACCEPT' : (status === ApplicationStatus.DECLINED ? 'DECLINE' : 'SCHEDULE INTERVIEW FOR');
+    if (!confirm(`Are you sure you want to ${msg} this candidate?`)) return;
+    
+    setUpdatingStatus(true);
+    try {
+      let interviewDate = undefined;
+      if (status === ApplicationStatus.INTERVIEW) {
+        interviewDate = prompt("Enter Interview Date/Time (e.g. 2026-05-10 10:00 AM):", "2026-05-10 10:00 AM") || undefined;
       }
+      await MockDB.updateStudentStatus(id, status, interviewDate);
+      setSelectedApplication(null);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeChatId || !msgInput.trim()) return;
-    MockDB.sendMessage(activeChatId, 'EXE-001', UserRole.EXECUTIVE_ACCOUNTS, msgInput.trim());
-    setMsgInput('');
-    setChatSessions(MockDB.getChatSessions());
-  };
+  const gradeLevels = [
+    { label: 'GRADE 1', value: '1' }, { label: 'GRADE 2', value: '2' }, { label: 'GRADE 3', value: '3' },
+    { label: 'GRADE 4', value: '4' }, { label: 'GRADE 5', value: '5' }, { label: 'GRADE 6', value: '6' },
+    { label: 'GRADE 7', value: '7' }, { label: 'FORM ONE', value: '8' },
+  ];
 
-  const handleAcceptChat = (sid: string) => {
-    MockDB.acceptChatRequest(sid);
-    setActiveChatId(sid);
-    refreshData();
-  };
+  const filteredStudents = students.filter(s => {
+    const matchesSearch = s.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          s.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          s.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGrade = s.grade.toString() === selectedGradeFilter;
+    return matchesSearch && matchesGrade;
+  });
 
-  const handleVerifyPayment = (notifId: string) => {
-    if (confirm("Confirm payment verification? This will instantly unlock results for the pupil.")) {
-      MockDB.verifyNotification(notifId);
-      refreshData();
-    }
-  };
+  const pendingApplications = students.filter(s => s.applicationStatus !== ApplicationStatus.ACCEPTED && s.applicationStatus !== ApplicationStatus.DECLINED);
 
-  const handleAddAnnouncement = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!annTitle || !annContent) return;
-    MockDB.addAnnouncement({
-      title: annTitle,
-      content: annContent,
-      priority: annPriority,
-      imageUrl: annImageUrl || undefined
-    });
-    setAnnTitle('');
-    setAnnContent('');
-    setAnnImageUrl('');
-    setShowAnnForm(false);
-    refreshData();
-  };
-
-  const handleDeleteAnn = (id: string) => {
-    if (confirm("Remove this announcement from the public landing page?")) {
-      MockDB.deleteAnnouncement(id);
-      refreshData();
-    }
-  };
-
-  const handleRenewContract = (staffId: string) => {
-    if (confirm("Execute contract renewal? This grants a 12-month active term from today.")) {
-      MockDB.renewContract(staffId);
-      refreshData();
-    }
-  };
-
-  const handleTerminateContract = (staffId: string) => {
-    if (confirm("WARNING: TERMINATE CONTRACT? This will immediately revoke portal access and finalize the personnel record.")) {
-      MockDB.terminateContract(staffId);
-      refreshData();
-    }
-  };
-
-  const handleArchiveYear = () => {
-    if (confirm(`FINAL ARCHIVAL: Finalize all accounts for ${growthData.current.year} and initialize the new financial period? Historical reports will be preserved.`)) {
-      MockDB.archiveFinancialYear();
-      refreshData();
-    }
-  };
-
-  const handleAddExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!expAmount || !expDescription) return;
-    MockDB.addExpense({
-      amount: parseFloat(expAmount),
-      category: expCategory,
-      description: expDescription
-    });
-    setExpAmount('');
-    setExpDescription('');
-    setShowExpenseForm(false);
-    refreshData();
-  };
-
-  const filteredStudents = students.filter(s => 
-    s.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.lastName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  const filteredStaff = staff.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.duties.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const selectedStudent = students.find(s => s.id === selectedStudentId);
-  const studentFees = selectedStudentId ? MockDB.getFeesByStudent(selectedStudentId) : [];
-  
-  const totalBilled = studentFees.filter(f => f.type === 'BILL').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalPaid = Math.abs(studentFees.filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + curr.amount, 0));
-  const balance = totalBilled - totalPaid;
-
-  useEffect(() => {
-    if (selectedStudent?.applicationStatus === ApplicationStatus.PENDING) {
-      setReviewTab('application');
-    } else {
-      setReviewTab('ledger');
-    }
-  }, [selectedStudentId]);
-
-  const getStatusBadge = (status?: ApplicationStatus) => {
-    switch (status) {
-      case ApplicationStatus.ACCEPTED:
-        return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-green-200">Enrolled</span>;
-      case ApplicationStatus.DECLINED:
-        return <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-red-200">Declined</span>;
-      case ApplicationStatus.INTERVIEW:
-        return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-blue-200">Interview Scheduled</span>;
-      default:
-        return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-amber-200 animate-pulse">Pending Review</span>;
-    }
-  };
-
-  const chartData = [...growthData.history, growthData.current].map(h => ({
-    year: h.year,
-    revenue: h.totalRevenue,
-    expenses: h.totalExpenses,
-    net: h.netProfit
-  }));
+  // Unified Chronological Activity Feed
+  const combinedActivity = [
+    ...students.filter(s => s.applicationStatus === ApplicationStatus.PENDING).map(s => ({
+        type: 'ADMISSION',
+        id: s.id,
+        title: 'New Application',
+        detail: `${s.firstName} ${s.lastName} (Grade ${s.grade})`,
+        date: s.submissionDate || 'Today',
+        priority: 'HIGH'
+    })),
+    ...notifications.map(n => ({
+        type: 'PAYMENT',
+        id: n.id,
+        title: 'Fee Notification',
+        detail: `K${n.amount} from Node ${n.studentId}`,
+        date: n.timestamp.split('T')[0],
+        priority: n.status === 'PENDING' ? 'HIGH' : 'NORMAL'
+    })),
+    ...expenses.map(e => ({
+        type: 'EXPENSE',
+        id: e.id,
+        title: 'Operational Outflow',
+        detail: `${e.description} - K${e.amount}`,
+        date: e.date,
+        priority: 'NORMAL'
+    }))
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6);
 
   const activeChat = chatSessions.find(s => s.id === activeChatId);
 
+  const getTrendData = () => {
+    if (!growthData) return [];
+    const base = growthData.current.totalRevenue;
+    return [
+      { name: 'Jan', revenue: base * 0.7, expenses: growthData.current.totalExpenses / 12 },
+      { name: 'Feb', revenue: base * 0.85, expenses: growthData.current.totalExpenses / 12 },
+      { name: 'Mar', revenue: base * 0.9, expenses: growthData.current.totalExpenses / 12 },
+      { name: 'Apr', revenue: base, expenses: growthData.current.totalExpenses / 12 },
+    ];
+  };
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-40">
+      <Loader2 size={48} className="animate-spin text-femac-yellow mb-6" />
+      <p className="font-black text-slate-400 uppercase tracking-[0.4em] text-xs">Synchronizing Registry...</p>
+    </div>
+  );
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      {showEnrolledNote && (
-        <div className="fixed top-24 right-10 z-[200] bg-green-600 text-white p-6 rounded-[2rem] shadow-2xl animate-in slide-in-from-right duration-500 max-w-xs border-2 border-white/20">
-           <div className="flex items-start space-x-4">
-              <CheckCircle size={24} className="text-femac-yellow" />
-              <div>
-                 <p className="font-black uppercase tracking-tight text-sm">Pupil Fully Synchronized</p>
-                 <p className="text-[10px] font-bold mt-1 opacity-90 leading-relaxed uppercase">Details propagate to all Teacher & Exam Registries instantly.</p>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Domain: ANNOUNCEMENTS */}
-      {activePage === 'announcements' && (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center space-x-6">
-                 <div className="p-5 bg-femac-900 text-femac-yellow rounded-[2rem] shadow-2xl">
-                    <Megaphone size={32} />
-                 </div>
-                 <div>
-                    <h3 className="text-4xl font-black text-femac-900 uppercase tracking-tighter">Public Announcements</h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Landing Page Content Sync Node</p>
-                 </div>
-              </div>
-              <button 
-                onClick={() => setShowAnnForm(!showAnnForm)}
-                className="bg-femac-900 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-xs tracking-widest flex items-center shadow-xl hover:bg-femac-yellow hover:text-femac-900 transition-all active:scale-95"
-              >
-                <Plus size={18} className="mr-3" /> New Announcement
-              </button>
-           </div>
-
-           {showAnnForm && (
-             <div className="bg-white p-10 rounded-[3rem] border-2 border-femac-yellow/30 shadow-2xl animate-in zoom-in duration-300">
-                <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight flex items-center">
-                     <Megaphone size={24} className="mr-3 text-femac-yellow" /> Broadcast New Message
-                   </h4>
-                   <button onClick={() => setShowAnnForm(false)} className="text-slate-300 hover:text-femac-900"><X size={24}/></button>
-                </div>
-                <form onSubmit={handleAddAnnouncement} className="space-y-6">
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Announcement Title</label>
-                         <input 
-                           required type="text" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)}
-                           placeholder="e.g., Term 3 Sports Day"
-                           className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 focus:border-femac-yellow transition-all"
-                         />
-                      </div>
-                      <div className="space-y-2">
-                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Priority Node</label>
-                         <select 
-                           value={annPriority} onChange={(e) => setAnnPriority(e.target.value as any)}
-                           className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 uppercase focus:border-femac-yellow transition-all appearance-none"
-                         >
-                            <option value="NORMAL">Normal Priority</option>
-                            <option value="URGENT">Urgent Alert</option>
-                         </select>
-                      </div>
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Announcement Body</label>
-                      <textarea 
-                        required rows={4} value={annContent} onChange={(e) => setAnnContent(e.target.value)}
-                        placeholder="Detail the announcement content here..."
-                        className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] outline-none font-medium text-slate-700 focus:border-femac-yellow transition-all resize-none"
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Image Reference URL (Optional)</label>
-                      <div className="relative">
-                        <Upload className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                        <input 
-                          type="text" value={annImageUrl} onChange={(e) => setAnnImageUrl(e.target.value)}
-                          placeholder="https://images.unsplash.com/..."
-                          className="w-full pl-14 pr-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm"
-                        />
-                      </div>
-                   </div>
-                   <button type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-lg hover:bg-green-600 transition-all shadow-xl">
-                      Synchronize with Landing Page
-                   </button>
-                </form>
-             </div>
-           )}
-
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {announcements.map(ann => (
-                 <div key={ann.id} className={`bg-white rounded-[2.5rem] border overflow-hidden shadow-sm flex flex-col group transition-all hover:shadow-xl ${ann.priority === 'URGENT' ? 'border-red-100' : 'border-slate-100'}`}>
-                    {ann.imageUrl && (
-                       <div className="h-48 overflow-hidden">
-                          <img src={ann.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="" />
-                       </div>
-                    )}
-                    <div className="p-8 flex-1 flex flex-col">
-                       <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                             <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${ann.priority === 'URGENT' ? 'bg-red-100 text-red-600' : 'bg-femac-50 text-femac-900'}`}>
-                                {ann.priority}
-                             </span>
-                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{ann.date}</span>
-                          </div>
-                          <button onClick={() => handleDeleteAnn(ann.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                             <Trash2 size={16} />
-                          </button>
-                       </div>
-                       <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight mb-2">{ann.title}</h4>
-                       <p className="text-xs text-slate-500 font-medium leading-relaxed flex-1">{ann.content}</p>
-                       <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-300">
-                          <span>Verified Registry Sync Node</span>
-                          <span className="flex items-center"><CheckCircle size={10} className="mr-1 text-green-500" /> Active on Website</span>
-                       </div>
-                    </div>
-                 </div>
-              ))}
-              {announcements.length === 0 && (
-                <div className="col-span-2 py-32 bg-white rounded-[4rem] border-4 border-dashed border-slate-100 text-center flex flex-col items-center justify-center">
-                   <Megaphone size={64} className="text-slate-100 mb-6" />
-                   <h4 className="text-2xl font-black text-slate-300 uppercase tracking-tighter">No Active Broadcasts</h4>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Initialize an announcement to reflect on the public landing page slideshow</p>
-                </div>
-              )}
-           </div>
-        </div>
-      )}
-
-      {/* Domain: MESSAGES / CHAT HUB */}
-      {activePage === 'messages' && (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 h-[700px] flex flex-col">
-           <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-3xl font-black text-femac-900 tracking-tighter uppercase leading-none">Executive Chat Hub</h2>
-                <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-2">Parent Inquiries & Live Node Assistance</p>
-              </div>
-              <div className="bg-femac-yellow text-femac-900 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center shadow-lg animate-pulse">
-                <Headphones size={16} className="mr-2" /> Live Queue: {chatSessions.filter(s => s.status === 'REQUESTED').length}
-              </div>
-           </div>
-
-           <div className="flex-1 bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden flex">
-              <div className="w-80 border-r border-slate-50 flex flex-col">
-                 <div className="p-6 bg-slate-50 border-b border-slate-100">
-                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Communication Registry</p>
-                 </div>
-                 <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {chatSessions.length > 0 ? chatSessions.map(session => (
-                      <button 
-                        key={session.id} 
-                        onClick={() => setActiveChatId(session.id)}
-                        className={`w-full p-6 text-left border-b border-slate-50 transition-all flex items-center space-x-4 ${activeChatId === session.id ? 'bg-femac-50/50' : 'hover:bg-slate-50'}`}
-                      >
-                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm uppercase ${session.status === 'REQUESTED' ? 'bg-femac-yellow text-femac-900 animate-pulse' : 'bg-femac-900 text-femac-yellow'}`}>
-                            {session.parentName[0]}
-                         </div>
-                         <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                              <p className="font-black text-femac-900 uppercase text-xs truncate">{session.parentName}</p>
-                              {session.status === 'REQUESTED' && <div className="w-2 h-2 bg-femac-yellow rounded-full"></div>}
-                            </div>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Status: {session.status.replace('_', ' ')}</p>
-                         </div>
-                      </button>
-                    )) : (
-                      <div className="p-10 text-center opacity-30">
-                        <MessageSquare className="mx-auto mb-4" size={48} />
-                        <p className="text-[10px] font-black uppercase tracking-widest">No Active Nodes</p>
-                      </div>
-                    )}
-                 </div>
-              </div>
-
-              <div className="flex-1 flex flex-col bg-slate-50/20">
-                 {activeChat ? (
-                   <>
-                     <div className="p-6 bg-white border-b border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                           <div className="w-10 h-10 bg-femac-900 rounded-xl flex items-center justify-center text-femac-yellow font-black uppercase">{activeChat.parentName[0]}</div>
-                           <div>
-                              <p className="font-black text-femac-900 uppercase text-sm tracking-tight">{activeChat.parentName}</p>
-                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">ID: {activeChat.parentId}</p>
-                           </div>
-                        </div>
-                        {activeChat.status === 'REQUESTED' && (
-                          <button onClick={() => handleAcceptChat(activeChat.id)} className="bg-femac-900 text-white px-6 py-2.5 rounded-xl font-black uppercase text-[9px] tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-lg">
-                            Accept Request
-                          </button>
-                        )}
-                     </div>
-                     <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
-                        {activeChat.messages.map(m => (
-                          <div key={m.id} className={`flex ${m.senderRole === UserRole.PARENT ? 'justify-start' : 'justify-end'}`}>
-                             <div className={`max-w-[70%] p-5 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${m.senderRole === UserRole.PARENT ? 'bg-white text-slate-700 rounded-bl-none border border-slate-100' : 'bg-femac-900 text-white rounded-br-none'}`}>
-                                {m.text}
-                                <div className={`text-[8px] mt-2 font-black uppercase tracking-widest opacity-40 ${m.senderRole === UserRole.PARENT ? 'text-slate-400' : 'text-femac-300'}`}>
-                                   {m.timestamp} {m.isAi ? '• AI ASSISTANT' : ''}
-                                </div>
-                             </div>
-                          </div>
-                        ))}
-                     </div>
-                     {(activeChat.status === 'ACTIVE' || activeChat.status === 'REQUESTED') && (
-                       <form onSubmit={handleSendMessage} className="p-6 bg-white border-t border-slate-100">
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              value={msgInput}
-                              onChange={(e) => setMsgInput(e.target.value)}
-                              placeholder="Respond to parent..."
-                              className="w-full pl-6 pr-20 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-sm text-slate-700 focus:border-femac-yellow transition-all shadow-inner"
-                            />
-                            <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 bg-femac-900 text-femac-yellow px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all">
-                              Send Node
-                            </button>
-                          </div>
-                       </form>
-                     )}
-                   </>
-                 ) : (
-                   <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
-                      <div className="w-32 h-32 bg-slate-50 text-slate-200 rounded-[3rem] flex items-center justify-center mb-10">
-                        <MessageCircle size={64} className="opacity-10" />
-                      </div>
-                      <h4 className="text-3xl font-black text-slate-200 uppercase tracking-tighter leading-none">Select a Registry Thread</h4>
-                      <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-4">Identify a chat node from the sidebar to begin administrative correspondence</p>
-                   </div>
-                 )}
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Domain: FINANCIALS (Registry + Notifications) */}
-      {activePage === 'financials' && (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h2 className="text-3xl font-black text-femac-900 tracking-tighter uppercase leading-none">Financial Operations</h2>
-              <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-2">Institutional Revenue & Candidate Ledger</p>
-            </div>
-            <div className="flex bg-white/50 p-1.5 rounded-2xl border border-slate-200 shadow-sm backdrop-blur-md">
-                <button 
-                    onClick={() => setFinancialSubTab('registry')}
-                    className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${financialSubTab === 'registry' ? 'bg-femac-900 text-white shadow-lg' : 'text-slate-400 hover:text-femac-900'}`}
-                >
-                    Registry Matrix
-                </button>
-                <button 
-                    onClick={() => setFinancialSubTab('notifications')}
-                    className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative ${financialSubTab === 'notifications' ? 'bg-femac-900 text-white shadow-lg' : 'text-slate-400 hover:text-femac-900'}`}
-                >
-                    Verification Node
-                    {notifications.filter(n => n.status === 'PENDING').length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-femac-yellow text-femac-900 rounded-full flex items-center justify-center text-[8px] font-black shadow-lg animate-bounce">
-                        {notifications.filter(n => n.status === 'PENDING') .length}
-                      </span>
-                    )}
-                </button>
-            </div>
+      <div className="bg-femac-900 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden text-white flex flex-col md:flex-row items-center justify-between gap-8">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-femac-yellow opacity-5 blur-[100px]"></div>
+        <div className="flex items-center space-x-6 relative z-10">
+          <div className="w-20 h-20 bg-femac-yellow rounded-[2.5rem] flex items-center justify-center text-femac-900 shadow-xl relative">
+             <Scale size={36} />
+             {isRefreshing && <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full animate-ping"></div>}
           </div>
-
-          {financialSubTab === 'registry' ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-                   <div className="flex justify-between items-start mb-4"><div className="bg-green-50 p-4 rounded-2xl"><DollarSign className="text-green-600" size={24} /></div></div>
-                   <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Fee Yield</p><h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.totalRevenue.toLocaleString()}</h4></div>
-                </div>
-                <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-                   <div className="flex justify-between items-start mb-4"><div className="bg-blue-50 p-4 rounded-2xl"><Users className="text-blue-600" size={24} /></div></div>
-                   <div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Enrolled Registry</p><h4 className="text-3xl font-black text-femac-900 tracking-tighter">{students.filter(s => s.applicationStatus === ApplicationStatus.ACCEPTED).length}</h4></div>
-                </div>
+          <div>
+            <h2 className="text-4xl font-black tracking-tighter uppercase leading-none">Executive Command</h2>
+            <p className="text-femac-300 font-black uppercase tracking-[0.3em] text-[10px] mt-3">Verified Institutional Management Hub</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-4 relative z-10">
+           {chatSessions.filter(s => s.status === 'REQUESTED').length > 0 && (
+              <div className="bg-red-600 text-white px-6 py-3 rounded-2xl flex items-center animate-pulse border-2 border-white/20">
+                <BellRing size={16} className="mr-2" />
+                <span className="text-[10px] font-black uppercase tracking-widest">{chatSessions.filter(s => s.status === 'REQUESTED').length} Escalation</span>
               </div>
+           )}
+           {pendingApplications.filter(s => s.applicationStatus === ApplicationStatus.PENDING).length > 0 && (
+              <div className="bg-amber-500 text-femac-900 px-6 py-3 rounded-2xl flex items-center shadow-xl border-2 border-femac-900/10 animate-in slide-in-from-top-4">
+                <UserPlus size={16} className="mr-2" />
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  {pendingApplications.filter(s => s.applicationStatus === ApplicationStatus.PENDING).length} New Request
+                </span>
+              </div>
+           )}
+           <button onClick={() => setShowAnnModal(true)} className="p-5 bg-femac-yellow text-femac-900 rounded-[1.5rem] shadow-xl hover:bg-white transition-all transform hover:-translate-y-1 group">
+             <Megaphone size={24} className="group-hover:animate-bounce" />
+           </button>
+           <div className="bg-white/5 border border-white/10 px-8 py-5 rounded-3xl text-right">
+              <p className="text-[9px] font-black uppercase tracking-widest text-femac-yellow mb-1">Active Pupils</p>
+              <p className="text-2xl font-black">{students.filter(s => s.applicationStatus === ApplicationStatus.ACCEPTED).length}</p>
+           </div>
+        </div>
+      </div>
 
+      {activePage === 'financials' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-bottom-4 duration-500">
+           <div className="lg:col-span-2 space-y-8">
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex items-center justify-between">
+                 <div className="flex items-center space-x-4 overflow-x-auto custom-scrollbar pb-2">
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mr-4 whitespace-nowrap">Grade Node:</p>
+                    {gradeLevels.map(grade => (
+                       <button key={grade.value} onClick={() => setSelectedGradeFilter(grade.value)} className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border-2 whitespace-nowrap ${selectedGradeFilter === grade.value ? 'bg-femac-900 text-white border-femac-900 shadow-lg' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-femac-yellow'}`}>{grade.label}</button>
+                    ))}
+                 </div>
+              </div>
               <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="p-10 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div>
-                    <h3 className="text-2xl font-black text-femac-900 uppercase tracking-tight flex items-center">
-                      <UserIcon className="mr-3 text-femac-yellow" size={28} /> Pupil Master Registry
-                    </h3>
-                  </div>
-                  <div className="relative md:w-96 group">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                    <input 
-                      type="text" 
-                      placeholder="Search Registry..." 
-                      value={searchTerm} 
-                      onChange={(e) => setSearchTerm(e.target.value)} 
-                      className="w-full pl-14 pr-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] outline-none font-bold text-slate-700 transition-all text-sm" 
-                    />
+                <div className="p-10 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6">
+                  <h3 className="text-2xl font-black text-femac-900 uppercase tracking-tight">Pupil Registry</h3>
+                  <div className="relative group w-full md:w-80">
+                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input type="text" placeholder="Search Node ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] outline-none font-bold text-slate-700 text-xs" />
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                      <tr>
-                        <th className="px-10 py-5">Academic ID</th>
-                        <th className="px-6 py-5">Full Name</th>
-                        <th className="px-6 py-5">Status</th>
-                        <th className="px-6 py-5">Results</th>
-                        <th className="px-6 py-5">Ledger</th>
-                        <th className="px-10 py-5 text-right">Actions</th>
-                      </tr>
+                      <tr><th className="px-10 py-5">Node ID</th><th className="px-6 py-5">Candidate</th><th className="px-6 py-5">Billed</th><th className="px-6 py-5">Paid</th><th className="px-6 py-5">Status</th><th className="px-10 py-5 text-right">Review</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {filteredStudents.map(student => {
-                        const sBalance = MockDB.getFeesByStudent(student.id).reduce((a, b) => a + b.amount, 0);
+                        const finances = getStudentFinances(student.id);
                         return (
-                          <tr key={student.id} className="group hover:bg-femac-50/50 transition-colors">
-                            <td className="px-10 py-6 font-black text-femac-900 uppercase tracking-tighter text-sm">{student.id}</td>
+                          <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-10 py-6 font-black text-femac-900 uppercase text-xs">{student.id}</td>
                             <td className="px-6 py-6 font-bold text-slate-600 uppercase text-[10px]">{student.firstName} {student.lastName}</td>
-                            <td className="px-6 py-6">{getStatusBadge(student.applicationStatus)}</td>
+                            <td className="px-6 py-6 font-black text-femac-900 text-xs">K {finances.totalBilled.toLocaleString()}</td>
+                            <td className="px-6 py-6 font-black text-green-600 text-xs">K {finances.totalPaid.toLocaleString()}</td>
                             <td className="px-6 py-6">
-                                {student.resultsUnlocked ? (
-                                    <span className="flex items-center text-green-600 text-[8px] font-black uppercase tracking-widest"><ShieldCheck size={12} className="mr-1" /> Unlocked</span>
-                                ) : (
-                                    <span className="flex items-center text-slate-300 text-[8px] font-black uppercase tracking-widest"><Lock size={12} className="mr-1" /> Locked</span>
-                                )}
+                               <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${student.applicationStatus === ApplicationStatus.ACCEPTED ? 'bg-green-50 text-green-600 border-green-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>{student.applicationStatus}</span>
                             </td>
-                            <td className="px-6 py-6 font-black text-sm tracking-tight text-femac-900">K {sBalance.toLocaleString()}</td>
-                            <td className="px-10 py-6 text-right">
-                              <button onClick={() => setSelectedStudentId(student.id)} className="p-2 bg-slate-100 text-slate-400 rounded-lg hover:bg-femac-900 hover:text-femac-yellow transition-all flex items-center justify-center ml-auto">
-                                 <ChevronRight size={16} />
-                              </button>
-                            </td>
+                            <td className="px-10 py-6 text-right"><button onClick={() => setSelectedStudent(student)} className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:bg-femac-900 hover:text-white transition-all"><FileEdit size={16}/></button></td>
                           </tr>
                         );
                       })}
@@ -540,666 +297,574 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
                   </table>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="grid grid-cols-1 gap-6">
-               <div className="bg-femac-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-femac-yellow opacity-5 blur-[100px]"></div>
-                  <div className="relative z-10">
-                    <h3 className="text-3xl font-black uppercase tracking-tighter mb-2">Verification Queue</h3>
-                    <p className="text-femac-300 font-bold text-xs uppercase tracking-widest">Confirm payment hashes to unlock candidate results</p>
-                  </div>
-                  <div className="bg-white/10 p-6 rounded-2xl backdrop-blur-md border border-white/10 text-center min-w-[200px] relative z-10">
-                     <p className="text-[10px] font-black uppercase tracking-widest text-femac-400 mb-1">Awaiting Action</p>
-                     <p className="text-4xl font-black text-femac-yellow leading-none">{notifications.filter(n => n.status === 'PENDING').length}</p>
-                  </div>
-               </div>
-
-               {notifications.length > 0 ? (
-                 notifications.map(notif => {
-                   const student = MockDB.getStudentById(notif.studentId);
-                   const isVerified = notif.status === 'VERIFIED';
-                   return (
-                     <div key={notif.id} className={`bg-white p-8 rounded-[2.5rem] border transition-all flex flex-col md:flex-row md:items-center justify-between gap-8 ${isVerified ? 'border-slate-100 opacity-60' : 'border-femac-yellow shadow-xl shadow-femac-yellow/5'}`}>
-                         <div className="flex items-start space-x-6">
-                            <div className={`p-5 rounded-2xl ${isVerified ? 'bg-slate-100 text-slate-400' : 'bg-femac-900 text-femac-yellow'}`}>
-                               {notif.method === 'MOMO' ? <Smartphone size={32} /> : <Landmark size={32} />}
-                            </div>
-                            <div>
-                               <div className="flex items-center space-x-3 mb-2">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{notif.timestamp}</span>
-                                  {isVerified ? (
-                                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-green-200">Authorised</span>
-                                  ) : (
-                                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-amber-200">Needs Verification</span>
-                                  )}
-                               </div>
-                               <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight">K {notif.amount.toLocaleString()} Settlement</h4>
-                               <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Candidate ID: {notif.studentId} • {student?.firstName} {student?.lastName}</p>
-                               <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest mt-3 flex items-center italic"><Info size={12} className="mr-1 text-femac-yellow" /> {notif.details}</p>
-                            </div>
-                         </div>
-
-                         {!isVerified ? (
-                           <button 
-                             onClick={() => handleVerifyPayment(notif.id)}
-                             className="bg-femac-900 text-white px-8 py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-xl active:scale-95 flex items-center justify-center space-x-3"
-                           >
-                              <ShieldCheck size={18} />
-                              <span>Verify & Unlock Results</span>
-                           </button>
-                         ) : (
-                           <div className="flex items-center text-green-600 font-black uppercase tracking-widest text-[10px] bg-green-50 px-6 py-3 rounded-2xl">
-                              <CheckCircle2 size={16} className="mr-2" /> Results Unlocked
-                           </div>
-                         )}
-                     </div>
-                   );
-                 })
-               ) : (
-                 <div className="py-24 bg-white rounded-[3rem] border-2 border-dashed border-slate-100 text-center flex flex-col items-center">
-                    <BellRing size={48} className="text-slate-200 mb-4" />
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-300">No payment notifications in registry</p>
-                 </div>
-               )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Domain: STAFFING */}
-      {activePage === 'staff' && (
-        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-           <div className="bg-femac-900 p-12 rounded-[3.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 border border-white/5">
-              <div className="absolute top-0 right-0 w-80 h-80 bg-femac-yellow opacity-[0.03] blur-[120px]"></div>
-              <div className="relative z-10">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="bg-femac-yellow p-4 rounded-2xl shadow-xl shadow-femac-yellow/20">
-                    <UserCog className="text-femac-900" size={32} />
-                  </div>
-                  <div>
-                    <h3 className="text-4xl font-black uppercase tracking-tighter leading-none">Staff Registry</h3>
-                    <p className="text-femac-400 font-bold text-xs uppercase tracking-[0.2em] mt-2">Personnel & Contractual Oversight Node</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-4 relative z-10">
-                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md text-center">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-femac-400 mb-1">Active Payroll</p>
-                  <p className="text-2xl font-black text-femac-yellow leading-none">K {staff.filter(s => s.contractStatus === 'ACTIVE').reduce((a, b) => a + b.salary, 0).toLocaleString()}</p>
-                </div>
-                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md text-center">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-femac-400 mb-1">Total Staff</p>
-                  <p className="text-2xl font-black text-white leading-none">{staff.length}</p>
-                </div>
-              </div>
            </div>
-
-           <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-sm overflow-hidden">
-             <div className="p-10 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-8">
-                <div className="relative flex-1 group">
-                   <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-femac-yellow transition-colors" size={24} />
-                   <input 
-                    type="text" 
-                    placeholder="Search Staff by Name, Duty, or ID..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-16 pr-8 py-5 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm shadow-inner"
-                   />
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className="bg-amber-50 px-5 py-3 rounded-2xl border border-amber-100 flex items-center">
-                    <ShieldAlert size={14} className="text-amber-500 mr-2" />
-                    <span className="text-[8px] font-black text-amber-700 uppercase tracking-widest leading-none">Contracts expire automatically after 1 year</span>
-                  </div>
-                  <button className="bg-femac-900 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-xs tracking-widest flex items-center shadow-xl hover:bg-femac-yellow hover:text-femac-900 transition-all active:scale-95">
-                    <UserPlus size={18} className="mr-3" /> Add Staff Member
-                  </button>
-                </div>
-             </div>
-             <div className="overflow-x-auto">
-               <table className="w-full text-left">
-                  <thead className="bg-slate-50/50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100">
-                    <tr>
-                      <th className="px-10 py-6">Full Name & Identification</th>
-                      <th className="px-6 py-6">Assigned Duties</th>
-                      <th className="px-6 py-6 text-center">Grade Focus</th>
-                      <th className="px-6 py-6 text-center">Contract Lifecycle</th>
-                      <th className="px-6 py-6 text-right">Payroll & Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filteredStaff.map(staffMember => (
-                      <tr key={staffMember.id} className="group hover:bg-femac-50/50 transition-all duration-300">
-                        <td className="px-10 py-8">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-sm group-hover:bg-femac-yellow group-hover:text-femac-900 transition-all">
-                              {staffMember.name.charAt(0)}
+           <div className="lg:col-span-1 space-y-8">
+              <div className="bg-femac-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+                 <div className="flex items-center justify-between mb-8">
+                    <h4 className="text-xl font-black uppercase tracking-tight flex items-center"><Clock size={24} className="mr-3 text-femac-yellow" /> Command Feed</h4>
+                    <span className="bg-white/10 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest animate-pulse">Live Stream</span>
+                 </div>
+                 <div className="space-y-6">
+                    {combinedActivity.length === 0 ? (
+                        <div className="py-10 text-center opacity-30 uppercase font-black text-[9px]">No recent registry node activity</div>
+                    ) : (
+                        combinedActivity.map((activity, idx) => (
+                            <div key={idx} className="flex items-start space-x-4 border-l-2 border-white/10 pl-4 group hover:border-femac-yellow transition-all">
+                                <div>
+                                    <div className="flex items-center space-x-2 mb-1">
+                                        <span className={`text-[8px] font-black uppercase tracking-widest ${activity.type === 'ADMISSION' ? 'text-amber-400' : (activity.type === 'PAYMENT' ? 'text-green-400' : 'text-blue-400')}`}>
+                                            {activity.type}
+                                        </span>
+                                        <span className="text-[8px] font-black text-white/20">•</span>
+                                        <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">{activity.date}</span>
+                                    </div>
+                                    <p className="text-xs font-bold leading-tight group-hover:text-femac-yellow transition-colors">{activity.title}</p>
+                                    <p className="text-[10px] text-white/60 mt-1 uppercase font-medium">{activity.detail}</p>
+                                </div>
                             </div>
-                            <div>
-                              <p className="font-black text-femac-900 uppercase text-sm leading-none mb-1.5">{staffMember.name}</p>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{staffMember.id} • Joined {staffMember.hireDate}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-8">
-                           <p className="text-xs font-bold text-slate-600 leading-relaxed max-w-xs">{staffMember.duties}</p>
-                        </td>
-                        <td className="px-6 py-8 text-center">
-                           {staffMember.assignedGrade ? (
-                             <span className="bg-femac-900 text-femac-yellow px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border border-femac-800">Grade {staffMember.assignedGrade} Node</span>
-                           ) : (
-                             <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Admin Hub</span>
-                           )}
-                        </td>
-                        <td className="px-6 py-8">
-                           <div className="flex flex-col items-center">
-                              {staffMember.contractStatus === 'ACTIVE' ? (
-                                <span className="flex items-center text-green-600 text-[9px] font-black uppercase tracking-widest bg-green-50 px-3 py-1 rounded-lg border border-green-100">
-                                  <BadgeCheck size={12} className="mr-1" /> Active Term
-                                </span>
-                              ) : staffMember.contractStatus === 'EXPIRED' ? (
-                                <span className="flex items-center text-amber-600 text-[9px] font-black uppercase tracking-widest bg-amber-50 px-3 py-1 rounded-lg border border-amber-100">
-                                  <Clock size={12} className="mr-1" /> Term Expired
-                                </span>
-                              ) : (
-                                <span className="flex items-center text-red-600 text-[9px] font-black uppercase tracking-widest bg-red-50 px-3 py-1 rounded-lg border border-red-100">
-                                  <XCircle size={12} className="mr-1" /> Terminated
-                                </span>
-                              )}
-                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">Expires: {staffMember.contractExpiryDate}</p>
-                           </div>
-                        </td>
-                        <td className="px-6 py-8">
-                           <div className="flex items-center justify-end space-x-6">
-                              <div className="text-right">
-                                <p className="text-lg font-black text-femac-900 tracking-tighter leading-none mb-1">K {staffMember.salary.toLocaleString()}</p>
-                                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Net Payable</p>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                 <button 
-                                   onClick={() => handleRenewContract(staffMember.id)}
-                                   title="Renew/Activate Contract"
-                                   className="p-3 bg-white border border-slate-100 text-green-600 rounded-xl hover:bg-green-600 hover:text-white hover:border-green-600 transition-all shadow-sm"
-                                 >
-                                   <RotateCw size={16} />
-                                 </button>
-                                 <button 
-                                   onClick={() => handleTerminateContract(staffMember.id)}
-                                   title="Terminate Contract"
-                                   className="p-3 bg-white border border-slate-100 text-red-500 rounded-xl hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
-                                 >
-                                   <Power size={16} />
-                                 </button>
-                              </div>
-                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
-             </div>
-             {filteredStaff.length === 0 && (
-               <div className="py-24 text-center">
-                  <UserLarge className="mx-auto text-slate-100 mb-4" size={64} />
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-300">No staff identified in this search</p>
-               </div>
-             )}
-           </div>
-        </div>
-      )}
-
-      {/* Domain: GROWTH */}
-      {activePage === 'growth' && (
-        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-20">
-           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center space-x-6">
-                 <div className="p-5 bg-femac-900 text-femac-yellow rounded-[2rem] shadow-2xl">
-                    <ChartIcon size={32} />
-                 </div>
-                 <div>
-                    <h3 className="text-4xl font-black text-femac-900 uppercase tracking-tighter">Institutional Growth Matrix</h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">FY {growthData.current.year} Performance Node</p>
-                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setShowExpenseForm(!showExpenseForm)}
-                    className="bg-white border-2 border-femac-900 text-femac-900 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-femac-900 hover:text-white transition-all shadow-lg flex items-center group"
-                  >
-                    <Plus size={16} className="mr-3 group-hover:rotate-90 transition-transform" /> Log Expense Node
-                  </button>
-                  <button 
-                    onClick={handleArchiveYear}
-                    className="bg-femac-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-xl group"
-                  >
-                    <History size={16} className="mr-3" /> Archive Financial Year
-                  </button>
-              </div>
-           </div>
-
-           {showExpenseForm && (
-             <div className="bg-white p-10 rounded-[3rem] border-2 border-femac-yellow/30 shadow-2xl animate-in zoom-in duration-300">
-                <div className="flex justify-between items-center mb-8">
-                   <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight flex items-center">
-                     <Receipt size={24} className="mr-3 text-femac-yellow" /> Create Expenditure Record
-                   </h4>
-                   <button onClick={() => setShowExpenseForm(false)} className="text-slate-300 hover:text-femac-900"><X size={24}/></button>
-                </div>
-                <form onSubmit={handleAddExpense} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Expense Amount (ZMW)</label>
-                      <input 
-                        required type="number" value={expAmount} onChange={(e) => setExpAmount(e.target.value)}
-                        placeholder="e.g., 5000"
-                        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 focus:border-femac-yellow transition-all"
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Classification</label>
-                      <select 
-                        value={expCategory} onChange={(e) => setExpCategory(e.target.value as any)}
-                        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 uppercase focus:border-femac-yellow transition-all appearance-none"
-                      >
-                         <option value="UTILITIES">Utilities & Power</option>
-                         <option value="MAINTENANCE">General Maintenance</option>
-                         <option value="RESOURCES">Academic Resources</option>
-                         <option value="MARKETING">Institutional Outreach</option>
-                      </select>
-                   </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Registry Descriptor</label>
-                      <input 
-                        required type="text" value={expDescription} onChange={(e) => setExpDescription(e.target.value)}
-                        placeholder="Brief purpose of expense..."
-                        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 focus:border-femac-yellow transition-all"
-                      />
-                   </div>
-                   <button type="submit" className="md:col-span-3 bg-femac-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-green-600 transition-all shadow-xl mt-4">
-                      Finalize Expenditure Node
-                   </button>
-                </form>
-             </div>
-           )}
-
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Gross Revenue</p>
-                 <div className="flex items-center justify-between">
-                    <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.totalRevenue.toLocaleString()}</h4>
-                    <TrendingUp className="text-green-500" size={24} />
-                 </div>
-                 <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Verified Fee Settlements</p>
-              </div>
-
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Gross Profit</p>
-                 <div className="flex items-center justify-between">
-                    <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.grossProfit.toLocaleString()}</h4>
-                    <Tag className="text-blue-400" size={24} />
-                 </div>
-                 <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Revenue - Operational Costs</p>
-              </div>
-
-              <div className="bg-femac-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-                 <div className="absolute top-0 right-0 w-24 h-24 bg-femac-yellow opacity-5 blur-2xl"></div>
-                 <p className="text-[10px] font-black uppercase text-femac-400 tracking-widest mb-3">Net Profit Yield</p>
-                 <div className="flex items-center justify-between">
-                    <h4 className={`text-3xl font-black tracking-tighter ${growthData.current.netProfit >= 0 ? 'text-femac-yellow' : 'text-red-400'}`}>
-                      K {growthData.current.netProfit.toLocaleString()}
-                    </h4>
-                    <BadgeCheck className="text-femac-400" size={24} />
-                 </div>
-                 <p className="text-[8px] font-bold text-white/40 uppercase mt-4">Current Year Liquid Capital</p>
-              </div>
-
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3">Student Growth Index</p>
-                 <div className="flex items-center justify-between">
-                    <h4 className="text-3xl font-black text-femac-900 tracking-tighter">{growthData.current.studentCount}</h4>
-                    <Users className="text-blue-500" size={24} />
-                 </div>
-                 <p className="text-[8px] font-bold text-slate-400 uppercase mt-4">Verified Active Registry</p>
-              </div>
-           </div>
-
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
-                 <div className="flex items-center justify-between mb-10">
-                    <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight">Growth Trend Projection</h4>
-                    <div className="flex items-center space-x-6">
-                       <div className="flex items-center space-x-2"><div className="w-2 h-2 bg-femac-900 rounded-full"></div><span className="text-[8px] font-black text-slate-400 uppercase">Revenue</span></div>
-                       <div className="flex items-center space-x-2"><div className="w-2 h-2 bg-femac-yellow rounded-full"></div><span className="text-[8px] font-black text-slate-400 uppercase">Net Profit</span></div>
-                    </div>
-                 </div>
-                 <div className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                       <AreaChart data={chartData}>
-                          <defs>
-                             <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#102a43" stopOpacity={0.1}/>
-                                <stop offset="95%" stopColor="#102a43" stopOpacity={0}/>
-                             </linearGradient>
-                             <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#facc15" stopOpacity={0.1}/>
-                                <stop offset="95%" stopColor="#facc15" stopOpacity={0}/>
-                             </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{fontSize: 10, fontStyle: 'bold', fill: '#94a3b8'}} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontStyle: 'bold', fill: '#94a3b8'}} />
-                          <Tooltip 
-                             contentStyle={{borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '20px', backgroundColor: '#102a43'}}
-                             itemStyle={{color: '#fff', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase'}}
-                             labelStyle={{color: '#facc15', marginBottom: '8px', fontSize: '10px', fontWeight: 900}}
-                          />
-                          <Area type="monotone" dataKey="revenue" stroke="#102a43" fillOpacity={1} fill="url(#colorRev)" strokeWidth={4} />
-                          <Area type="monotone" dataKey="net" stroke="#facc15" fillOpacity={1} fill="url(#colorNet)" strokeWidth={4} />
-                       </AreaChart>
-                    </ResponsiveContainer>
-                 </div>
-              </div>
-
-              <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                 <div className="p-8 border-b border-slate-50 bg-slate-50/50">
-                    <h4 className="text-sm font-black text-femac-900 uppercase tracking-widest flex items-center">
-                       <History className="mr-3 text-femac-yellow" size={18} /> Historical Reports
-                    </h4>
-                 </div>
-                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-4">
-                    {growthData.history.slice().reverse().map(h => (
-                       <div key={h.year} className="p-6 bg-slate-50 border border-slate-100 rounded-3xl hover:border-femac-900 transition-all group">
-                          <div className="flex items-center justify-between mb-4">
-                             <span className="text-xl font-black text-femac-900 uppercase">FY {h.year}</span>
-                             <div className="bg-white p-2 rounded-xl group-hover:bg-femac-yellow transition-colors"><FileCheck size={16} /></div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                             <div>
-                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Total Yield</p>
-                                <p className="text-sm font-black text-femac-900">K {h.totalRevenue.toLocaleString()}</p>
-                             </div>
-                             <div>
-                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Profitability</p>
-                                <p className="text-sm font-black text-green-600">+{Math.round((h.netProfit/h.totalRevenue)*100)}%</p>
-                             </div>
-                          </div>
-                       </div>
-                    ))}
-                    {growthData.history.length === 0 && (
-                      <div className="py-20 text-center flex flex-col items-center">
-                        <ChartIcon size={48} className="text-slate-100 mb-4" />
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No historical data identified</p>
-                      </div>
+                        ))
                     )}
                  </div>
-                 <div className="p-8 border-t border-slate-50 bg-femac-900 text-white">
-                    <div className="flex items-center justify-between mb-2">
-                       <p className="text-[9px] font-black uppercase text-femac-400">Total Asset Growth</p>
-                       <span className="text-femac-yellow font-black text-lg">+18.5%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                       <div className="w-[18.5%] h-full bg-femac-yellow shadow-[0_0_8px_#facc15]"></div>
-                    </div>
+                 <div className="mt-8 pt-6 border-t border-white/5">
+                    <button onClick={() => refreshData()} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">Manual Registry Sync</button>
                  </div>
               </div>
-           </div>
-
-           <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-10 border-b border-slate-50 flex items-center justify-between">
-                 <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight">Institutional Expense Ledger</h4>
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">FY {growthData.current.year} Entries</p>
-              </div>
-              <div className="overflow-x-auto">
-                 <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                       <tr>
-                          <th className="px-10 py-6">Expenditure Identity</th>
-                          <th className="px-6 py-6">Classification</th>
-                          <th className="px-6 py-6">Processing Date</th>
-                          <th className="px-10 py-6 text-right">Amount node</th>
-                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                       <tr className="bg-slate-50/50">
-                          <td className="px-10 py-6">
-                             <p className="text-sm font-black text-femac-900 uppercase tracking-tighter leading-none mb-1.5">Consolidated Staff Salaries</p>
-                             <p className="text-[8px] font-bold text-slate-400 uppercase">Automatic Payroll Sync Node</p>
-                          </td>
-                          <td className="px-6 py-6"><span className="bg-femac-900 text-femac-yellow px-3 py-1 rounded-lg text-[8px] font-black uppercase">Core Salaries</span></td>
-                          <td className="px-6 py-6 font-bold text-slate-400 uppercase text-[10px]">Monthly Recurring</td>
-                          <td className="px-10 py-6 text-right font-black text-red-600">K {growthData.current.totalSalaries.toLocaleString()}</td>
-                       </tr>
-                       {expenses.map((exp) => (
-                         <tr key={exp.id} className="hover:bg-slate-50 transition-colors">
-                           <td className="px-10 py-6">
-                             <p className="text-sm font-black text-femac-900 uppercase tracking-tighter leading-none mb-1.5">{exp.description}</p>
-                             <p className="text-[8px] font-bold text-slate-400 uppercase">Node ID: {exp.id}</p>
-                           </td>
-                           <td className="px-6 py-6">
-                             <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[8px] font-black uppercase">{exp.category}</span>
-                           </td>
-                           <td className="px-6 py-6 font-bold text-slate-400 uppercase text-[10px]">{exp.date}</td>
-                           <td className="px-10 py-6 text-right font-black text-red-500">K {exp.amount.toLocaleString()}</td>
-                         </tr>
-                       ))}
-                    </tbody>
-                 </table>
+              <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 text-center">
+                 <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-femac-900"><Zap size={28}/></div>
+                 <h5 className="font-black text-femac-900 uppercase text-lg leading-none">System Health</h5>
+                 <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-2">Registry Node 2026.04</p>
+                 <div className="mt-8 space-y-3">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase"><span className="text-slate-400">DB Latency</span><span className="text-green-600">42ms</span></div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase"><span className="text-slate-400">Registry Sync</span><span className="text-green-600">Active</span></div>
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase"><span className="text-slate-400">AI Tokens</span><span className="text-amber-600">Normal</span></div>
+                 </div>
               </div>
            </div>
         </div>
       )}
 
-      {/* SHARED MODAL: PUPIL REVIEW (Triggered from Financials) */}
-      {selectedStudent && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-6xl overflow-hidden relative flex flex-col md:flex-row h-[85vh]">
-            <button onClick={() => setSelectedStudentId(null)} className="absolute top-8 right-8 text-slate-400 hover:text-femac-900 transition-colors z-[110]"><X size={32} /></button>
-            <div className="md:w-80 bg-femac-900 p-10 text-white flex flex-col items-center text-center relative shrink-0">
-              <div className="w-28 h-28 rounded-[2.5rem] bg-femac-yellow flex items-center justify-center text-femac-900 text-3xl font-black mb-6 uppercase shadow-xl">
-                {selectedStudent.firstName[0]}{selectedStudent.lastName[0]}
-              </div>
-              <h4 className="text-3xl font-black uppercase tracking-tighter mb-2 leading-none">{selectedStudent.id}</h4>
-              <p className="text-femac-200 text-xs font-bold uppercase tracking-widest mb-6">{selectedStudent.firstName} {selectedStudent.lastName}</p>
-              <div className="mb-6">{getStatusBadge(selectedStudent.applicationStatus)}</div>
-              
-              <div className="mt-auto space-y-4 w-full">
-                <button onClick={() => setReviewTab('ledger')} className={`w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${reviewTab === 'ledger' ? 'bg-femac-yellow text-femac-900' : 'text-femac-300 hover:text-white'}`}>Financial Ledger</button>
-                <button onClick={() => setReviewTab('application')} className={`w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${reviewTab === 'application' ? 'bg-femac-yellow text-femac-900' : 'text-femac-300 hover:text-white'}`}>Application File</button>
-              </div>
-            </div>
-            <div className="flex-1 p-12 overflow-y-auto custom-scrollbar bg-slate-50/50">
-               {reviewTab === 'ledger' ? (
-                 <div className="animate-in fade-in slide-in-from-right-4 h-full flex flex-col">
-                    <div className="flex items-center justify-between mb-8">
-                       <div>
-                         <h5 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Financial Analysis Matrix</h5>
-                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comprehensive Fee History Node</p>
-                       </div>
-                       <div className="bg-white px-5 py-2 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-3">
-                          <History size={16} className="text-femac-yellow" />
-                          <span className="text-[9px] font-black text-femac-900 uppercase">Archive Sync: Active</span>
-                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                        <div className="p-8 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-femac-yellow transition-colors group">
-                          <div className="flex justify-between items-start mb-4">
-                             <div className="bg-slate-50 p-3 rounded-xl group-hover:bg-femac-900 group-hover:text-femac-yellow transition-colors"><Receipt size={20} /></div>
-                             <ArrowUpRight size={16} className="text-slate-300" />
-                          </div>
-                          <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Cumulative Billings</p>
-                            <h6 className="text-3xl font-black tracking-tighter text-femac-900">K {totalBilled.toLocaleString()}</h6>
-                            <p className="text-[7px] font-bold text-slate-400 uppercase mt-1">Total value since enrollment</p>
-                          </div>
-                        </div>
-
-                        <div className="p-8 bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-green-500 transition-colors group">
-                          <div className="flex justify-between items-start mb-4">
-                             <div className="bg-green-50 p-3 rounded-xl group-hover:bg-green-600 group-hover:text-white transition-colors"><Wallet size={20} /></div>
-                             <CheckCircle size={16} className="text-green-300" />
-                          </div>
-                          <div>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Recovered Capital</p>
-                            <h6 className="text-3xl font-black tracking-tighter text-green-600">K {totalPaid.toLocaleString()}</h6>
-                            <p className="text-[7px] font-bold text-slate-400 uppercase mt-1">Verified amounts paid in full</p>
-                          </div>
-                        </div>
-
-                        <div className="p-8 bg-femac-900 rounded-3xl border border-femac-yellow/20 shadow-2xl flex flex-col justify-between relative overflow-hidden">
-                          <div className="absolute top-0 right-0 w-16 h-16 bg-femac-yellow opacity-10 rounded-full blur-xl translate-x-1/2 -translate-y-1/2"></div>
-                          <div className="flex justify-between items-start mb-4 relative z-10">
-                             <div className="bg-white/10 p-3 rounded-xl text-femac-yellow"><DollarSign size={20} /></div>
-                             <Info size={16} className="text-femac-400" />
-                          </div>
-                          <div className="relative z-10">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-femac-400 mb-1">Registry Balance</p>
-                            <h6 className={`text-3xl font-black tracking-tighter ${balance > 0 ? 'text-red-400' : 'text-green-400'}`}>K {balance.toLocaleString()}</h6>
-                            <p className="text-[7px] font-bold text-white/40 uppercase mt-1">To be paid to finalize node</p>
-                          </div>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center justify-between px-2 mb-4">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Chronological Transaction Feed</p>
-                        <div className="flex items-center space-x-4">
-                           <div className="flex items-center space-x-1.5"><div className="w-1.5 h-1.5 bg-slate-900 rounded-full"></div><span className="text-[8px] font-black text-slate-400 uppercase">Bills</span></div>
-                           <div className="flex items-center space-x-1.5"><div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div><span className="text-[8px] font-black text-slate-400 uppercase">Payments</span></div>
-                        </div>
-                      </div>
-                      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        {studentFees.map(fee => (
-                          <div key={fee.id} className="flex justify-between items-center p-6 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow group">
-                            <div className="flex items-center space-x-6">
-                              <div className={`p-4 rounded-xl transition-all ${fee.type === 'BILL' ? 'bg-slate-900 text-femac-yellow group-hover:scale-110' : 'bg-green-100 text-green-600 group-hover:scale-110'}`}>
-                                {fee.type === 'BILL' ? <Receipt size={18} /> : <CheckCircle size={18} />}
-                              </div>
-                              <div>
-                                <p className="font-black text-femac-900 uppercase text-[11px] mb-1 tracking-tight">{fee.description}</p>
-                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{fee.date} • FAIMS-TXN-SYNC</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                               <span className={`font-black text-lg tracking-tighter block leading-none ${fee.type === 'BILL' ? 'text-femac-900' : 'text-green-600'}`}>
-                                 {fee.type === 'BILL' ? '+' : '-'} K {Math.abs(fee.amount).toLocaleString()}
-                               </span>
-                               <span className="text-[7px] font-bold text-slate-300 uppercase tracking-widest">Verified Entry</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+      {activePage === 'admissions' && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-in slide-in-from-bottom-4 duration-500 min-h-[700px]">
+           <div className="lg:col-span-1 bg-white rounded-[3rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+              <div className="p-8 border-b border-slate-100 flex justify-between items-center">
+                 <div>
+                    <h3 className="text-xl font-black text-femac-900 uppercase tracking-tight">Review Queue</h3>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Pending Admissions Node</p>
                  </div>
-               ) : (
-                 <div className="animate-in fade-in slide-in-from-left-4 h-full flex flex-col pb-10">
-                    <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
-                       <h5 className="text-xl font-black uppercase tracking-tighter text-femac-900 flex items-center">
-                         <FileText size={24} className="mr-3 text-femac-yellow" /> Candidate Application File
-                       </h5>
-                       <div className="flex items-center space-x-3">
-                          <span className="text-[10px] font-black uppercase text-slate-400">Submission Node:</span>
-                          <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase">{selectedStudent.submissionDate || 'Live Data'}</span>
+                 {pendingApplications.length > 0 && (
+                    <span className="bg-amber-100 text-amber-600 text-[10px] font-black px-3 py-1 rounded-full">{pendingApplications.length}</span>
+                 )}
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                 {pendingApplications.length === 0 ? (
+                    <div className="py-24 text-center">
+                       <FileSearch size={48} className="mx-auto text-slate-100 mb-4" />
+                       <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Applications Pending</p>
+                    </div>
+                 ) : (
+                    pendingApplications.map(app => (
+                       <button 
+                         key={app.id} 
+                         onClick={() => setSelectedApplication(app)}
+                         className={`w-full p-6 rounded-3xl text-left border-2 transition-all group relative ${selectedApplication?.id === app.id ? 'bg-femac-900 border-femac-900 shadow-xl text-white' : 'bg-slate-50 border-slate-50 hover:border-femac-yellow'}`}
+                       >
+                          {app.applicationStatus === ApplicationStatus.PENDING && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 rounded-full border-2 border-white animate-pulse"></div>
+                          )}
+                          <div className="flex justify-between items-start mb-2">
+                             <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border ${app.applicationStatus === ApplicationStatus.INTERVIEW ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}>{app.applicationStatus}</span>
+                             <span className={`text-[9px] font-black uppercase tracking-widest ${selectedApplication?.id === app.id ? 'text-femac-400' : 'text-slate-400'}`}>{app.id}</span>
+                          </div>
+                          <p className="font-black text-sm uppercase tracking-tight">{app.firstName} {app.lastName}</p>
+                          <p className={`text-[10px] font-bold uppercase mt-1 ${selectedApplication?.id === app.id ? 'text-femac-300' : 'text-slate-500'}`}>Grade {app.grade} Candidate</p>
+                       </button>
+                    ))
+                 )}
+              </div>
+           </div>
+
+           <div className="lg:col-span-3 bg-white rounded-[4rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden relative">
+              {selectedApplication ? (
+                 <>
+                    <div className="p-12 border-b border-slate-50 flex justify-between items-center bg-femac-900 text-white relative">
+                       <div className="absolute top-0 right-0 w-64 h-full bg-femac-yellow opacity-5 -skew-x-12 translate-x-1/2"></div>
+                       <div className="flex items-center space-x-6 relative z-10">
+                          <div className="w-16 h-16 bg-femac-yellow rounded-[1.5rem] flex items-center justify-center text-femac-900 shadow-xl">
+                             <UserLarge size={32} />
+                          </div>
+                          <div>
+                             <h4 className="text-3xl font-black uppercase tracking-tighter leading-none">{selectedApplication.firstName} {selectedApplication.lastName}</h4>
+                             <p className="text-[10px] font-black text-femac-400 uppercase tracking-[0.4em] mt-3">Registry Node: {selectedApplication.id} • Applied: {selectedApplication.submissionDate}</p>
+                          </div>
+                       </div>
+                       <div className="flex items-center space-x-4 relative z-10">
+                          <button onClick={() => handleUpdateApplicationStatus(selectedApplication.id, ApplicationStatus.ACCEPTED)} className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center transition-all transform active:scale-95 border-b-4 border-green-800">
+                             <CheckCircle size={14} className="mr-2" /> Verify & Accept
+                          </button>
+                          <button onClick={() => handleUpdateApplicationStatus(selectedApplication.id, ApplicationStatus.DECLINED)} className="bg-white/10 hover:bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/20 transition-all transform active:scale-95">
+                             <UserX size={14} className="mr-2" /> Decline Candidate
+                          </button>
                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                       <div className="space-y-8">
-                          {/* ACADEMIC PROFILE */}
-                          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                             <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-femac-900 mb-6 flex items-center border-b border-slate-50 pb-3">
-                                <BookOpen size={16} className="mr-2 text-femac-yellow" /> Academic Identity Profile
-                             </h6>
-                             <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">First Name</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.firstName}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Surname</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.lastName}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Grade Level</p><p className="font-bold text-sm text-slate-700 uppercase">GRADE {selectedStudent.grade}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Gender</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.gender || 'Not Logged'}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Date of Birth</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.dob || 'Not Logged'}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Previous School</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.previousSchool || 'None Recorded'}</p></div>
+                    <div className="flex-1 overflow-y-auto p-12 space-y-12 custom-scrollbar bg-slate-50/30">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+                             <div className="flex items-center space-x-4 border-b border-slate-100 pb-4">
+                                <div className="p-2 bg-femac-900 text-femac-yellow rounded-lg"><Info size={16}/></div>
+                                <h6 className="text-[11px] font-black uppercase tracking-widest text-femac-900">1. Personal Registry Node</h6>
+                             </div>
+                             <div className="grid grid-cols-2 gap-6">
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Gender</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.gender}</p></div>
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Date of Birth</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.dob}</p></div>
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Applying Grade</p><p className="font-black text-femac-900 uppercase text-xs">Grade {selectedApplication.grade}</p></div>
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Previous School</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.previousSchool}</p></div>
                              </div>
                           </div>
 
-                          {/* GUARDIAN REGISTRY */}
-                          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                             <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-femac-900 mb-6 flex items-center border-b border-slate-50 pb-3">
-                                <ShieldCheck size={16} className="mr-2 text-femac-yellow" /> Guardian / Parent Registry
-                             </h6>
-                             <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-                                <div className="col-span-2"><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Guardian Name</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.guardianName || 'Registry Blank'}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">NRC / Identity</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.parentNrc || 'Registry Blank'}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Relationship</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.relationship || 'Registry Blank'}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Phone Line</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.phone || 'Registry Blank'}</p></div>
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Email Node</p><p className="font-bold text-xs text-slate-700 lowercase">{selectedStudent.email || 'Registry Blank'}</p></div>
-                                <div className="col-span-2"><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Occupation</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.occupation || 'Registry Blank'}</p></div>
+                          <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+                             <div className="flex items-center space-x-4 border-b border-slate-100 pb-4">
+                                <div className="p-2 bg-femac-900 text-femac-yellow rounded-lg"><Users size={16}/></div>
+                                <h6 className="text-[11px] font-black uppercase tracking-widest text-femac-900">2. Guardian & Address Data</h6>
+                             </div>
+                             <div className="grid grid-cols-2 gap-6">
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Guardian Name</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.guardianName}</p></div>
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Parent NRC</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.parentNrc}</p></div>
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Occupation</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.occupation}</p></div>
+                                <div><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Relationship</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.relationship}</p></div>
+                                <div className="col-span-2"><p className="text-[9px] font-black text-slate-400 uppercase mb-1">Residential Address</p><p className="font-black text-femac-900 uppercase text-xs">{selectedApplication.address}</p></div>
                              </div>
                           </div>
                        </div>
 
+                       <div className="bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-8">
+                          <div className="flex items-center space-x-6">
+                             <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center border border-amber-100 shadow-inner"><CalendarClock size={28}/></div>
+                             <div>
+                                <h5 className="text-xl font-black text-femac-900 uppercase tracking-tight">Interview Node Status</h5>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{selectedApplication.applicationStatus === ApplicationStatus.INTERVIEW ? `Scheduled for ${selectedApplication.interviewDate}` : 'No interview currently scheduled in registry.'}</p>
+                             </div>
+                          </div>
+                          <button onClick={() => handleUpdateApplicationStatus(selectedApplication.id, ApplicationStatus.INTERVIEW)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-lg flex items-center">
+                             <CalendarClock size={16} className="mr-2" /> {selectedApplication.applicationStatus === ApplicationStatus.INTERVIEW ? 'Reschedule Node' : 'Set Interview Date'}
+                          </button>
+                       </div>
+                    </div>
+                 </>
+              ) : (
+                 <div className="flex-1 flex flex-col items-center justify-center text-center p-20 text-slate-300">
+                    <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
+                       <FileSearch size={48} className="opacity-20" />
+                    </div>
+                    <h4 className="text-3xl font-black text-femac-900/10 uppercase tracking-tighter">Select a Candidate for Registry Review</h4>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-4">Authorized Executive Admission Terminal</p>
+                 </div>
+              )}
+           </div>
+        </div>
+      )}
+
+      {activePage === 'growth' && growthData && (
+        <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
+           {/* Summary Cards */}
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center"><Activity size={12} className="mr-2 text-femac-yellow" /> Annual Revenue</p>
+                 <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.totalRevenue.toLocaleString()}</h4>
+                 <div className="mt-4 flex items-center text-[10px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full w-fit border border-green-100 uppercase tracking-widest"><ArrowUpRight size={10} className="mr-1" /> Verified Flow</div>
+              </div>
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center"><TrendingUp size={12} className="mr-2 text-blue-500" /> Gross Margin</p>
+                 <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.grossProfit.toLocaleString()}</h4>
+                 <div className="mt-4 flex items-center text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full w-fit border border-blue-100 uppercase tracking-widest"><TrendingUp size={10} className="mr-1" /> Op Efficiency</div>
+              </div>
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center"><ArrowDownRight size={12} className="mr-2 text-red-500" /> Total Expenses</p>
+                 <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.totalExpenses.toLocaleString()}</h4>
+                 <div className="mt-4 flex items-center text-[10px] font-black text-red-600 bg-red-50 px-3 py-1 rounded-full w-fit border border-red-100 uppercase tracking-widest">Salaries & Ops</div>
+              </div>
+              <div className="bg-femac-900 p-8 rounded-[2.5rem] shadow-xl text-white">
+                 <p className="text-[9px] font-black text-femac-400 uppercase tracking-widest mb-2">Net Registry Profit</p>
+                 <h4 className="text-3xl font-black text-femac-yellow tracking-tighter">K {growthData.current.netProfit.toLocaleString()}</h4>
+                 <div className="mt-4 flex items-center text-[10px] font-black text-femac-900 bg-femac-yellow px-3 py-1 rounded-full w-fit uppercase tracking-widest">Yearly Retained</div>
+              </div>
+           </div>
+
+           {/* Main Growth Chart */}
+           <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
+                 <div>
+                    <h3 className="text-3xl font-black text-femac-900 uppercase tracking-tighter">Revenue <span className="text-femac-yellow">Trend</span> Registry</h3>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Historical Growth Matrix (Academic Year 2026)</p>
+                 </div>
+                 <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+                    <button className="px-6 py-2.5 rounded-xl bg-white text-femac-900 font-black text-[10px] uppercase tracking-widest shadow-md">Monthly View</button>
+                    <button className="px-6 py-2.5 rounded-xl text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-femac-900 transition-colors">Quarterly</button>
+                 </div>
+              </div>
+
+              <div className="h-[450px] w-full">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={getTrendData()}>
+                       <defs>
+                          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                             <stop offset="5%" stopColor="#102a43" stopOpacity={0.1}/>
+                             <stop offset="95%" stopColor="#102a43" stopOpacity={0}/>
+                          </linearGradient>
+                       </defs>
+                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
+                       <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
+                       <Tooltip contentStyle={{borderRadius: '2rem', border: 'none', backgroundColor: '#102a43', color: '#fff', fontSize: '10px'}} />
+                       <Area type="monotone" dataKey="revenue" stroke="#102a43" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
+                       <Area type="monotone" dataKey="expenses" stroke="#facc15" strokeWidth={2} strokeDasharray="5 5" fill="transparent" />
+                       <Legend verticalAlign="top" align="right" wrapperStyle={{paddingBottom: '20px', fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase'}} />
+                    </AreaChart>
+                 </ResponsiveContainer>
+              </div>
+           </div>
+
+           {/* Detailed Breakdown Tabs */}
+           <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm">
+              <div className="flex items-center space-x-6 mb-12 border-b border-slate-100 pb-8">
+                 <button onClick={() => setActiveGrowthTab('profit')} className={`flex items-center space-x-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeGrowthTab === 'profit' ? 'bg-femac-900 text-white shadow-xl' : 'text-slate-400 hover:text-femac-900'}`}>
+                    <Activity size={16} /> <span>Gross Profit Nodes</span>
+                 </button>
+                 <button onClick={() => setActiveGrowthTab('expenses')} className={`flex items-center space-x-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeGrowthTab === 'expenses' ? 'bg-femac-900 text-white shadow-xl' : 'text-slate-400 hover:text-femac-900'}`}>
+                    <CreditCard size={16} /> <span>Expense Breakdown</span>
+                 </button>
+                 <button onClick={() => setActiveGrowthTab('net')} className={`flex items-center space-x-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeGrowthTab === 'net' ? 'bg-femac-900 text-white shadow-xl' : 'text-slate-400 hover:text-femac-900'}`}>
+                    <Trophy size={16} /> <span>Net Profit Analysis</span>
+                 </button>
+              </div>
+
+              <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                 {activeGrowthTab === 'profit' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                        <div className="space-y-8">
-                          {/* CONTACT & EMERGENCY */}
-                          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                             <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-femac-900 mb-6 flex items-center border-b border-slate-50 pb-3">
-                                <MapPin size={16} className="mr-2 text-femac-yellow" /> Contact & Emergency Node
-                             </h6>
-                             <div className="space-y-6">
-                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Residential Address</p><p className="font-bold text-sm text-slate-700 uppercase leading-relaxed">{selectedStudent.address || 'Registry Blank'}</p></div>
-                                <div className="grid grid-cols-2 gap-4">
-                                   <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Emergency Contact</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.emergencyName || 'Registry Blank'}</p></div>
-                                   <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Emergency Phone</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.emergencyPhone || 'Registry Blank'}</p></div>
+                          <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight">Institutional Revenue Streams</h4>
+                          <div className="space-y-4">
+                             {[
+                                { label: 'Tuition Fees (Primary)', value: growthData.current.totalRevenue * 0.45, color: 'bg-femac-900' },
+                                { label: 'Tuition Fees (Junior)', value: growthData.current.totalRevenue * 0.35, color: 'bg-femac-600' },
+                                { label: 'Tuition Fees (Senior)', value: growthData.current.totalRevenue * 0.15, color: 'bg-femac-400' },
+                                { label: 'Misc. Registry Payments', value: growthData.current.totalRevenue * 0.05, color: 'bg-femac-yellow' },
+                             ].map((item, i) => (
+                                <div key={i} className="flex justify-between items-end p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
+                                   <div>
+                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
+                                      <div className="flex items-center space-x-2">
+                                         <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
+                                         <span className="font-black text-femac-900">K {item.value.toLocaleString()}</span>
+                                      </div>
+                                   </div>
+                                   <span className="text-[10px] font-black text-slate-300">{(item.value / growthData.current.totalRevenue * 100).toFixed(1)}%</span>
                                 </div>
+                             ))}
+                          </div>
+                       </div>
+                       <div className="bg-slate-900 rounded-[3rem] p-10 text-white flex flex-col justify-center relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-femac-yellow mb-4">Registry Insight</p>
+                          <h5 className="text-3xl font-black tracking-tighter leading-tight mb-6">Profitability node is currently optimized at <span className="text-femac-yellow">78.4%</span> across all division streams.</h5>
+                          <button className="w-fit bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-femac-900 transition-all border border-white/20">Download Detailed Report</button>
+                       </div>
+                    </div>
+                 )}
+
+                 {activeGrowthTab === 'expenses' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                       <div className="space-y-8">
+                          <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight">Institutional Outflow Analysis</h4>
+                          <div className="space-y-4">
+                             {[
+                                { label: 'Payroll & Salaries', value: growthData.current.totalSalaries, icon: Users },
+                                { label: 'Operational Utilities', value: growthData.current.operationalCosts * 0.4, icon: Zap },
+                                { label: 'Academic Resources', value: growthData.current.operationalCosts * 0.3, icon: BookOpen },
+                                { label: 'Maintenance & Facilities', value: growthData.current.operationalCosts * 0.3, icon: Briefcase },
+                             ].map((item, i) => (
+                                <div key={i} className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 group hover:border-femac-yellow transition-all">
+                                   <div className="flex items-center space-x-4">
+                                      <div className="p-3 bg-white rounded-xl shadow-sm text-femac-900 group-hover:bg-femac-900 group-hover:text-femac-yellow transition-all"><item.icon size={18} /></div>
+                                      <div>
+                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{item.label}</p>
+                                         <p className="font-black text-femac-900 text-lg">K {item.value.toLocaleString()}</p>
+                                      </div>
+                                   </div>
+                                   <div className="text-right">
+                                      <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">Outflow Node</span>
+                                   </div>
+                                </div>
+                             ))}
+                          </div>
+                       </div>
+                       <div className="bg-red-50 rounded-[3rem] p-10 border border-red-100 flex flex-col justify-center">
+                          <h5 className="text-2xl font-black text-red-900 uppercase tracking-tight mb-4">Cost Mitigation Node</h5>
+                          <p className="text-sm font-bold text-slate-500 leading-relaxed uppercase tracking-widest mb-8">Operational costs are being tracked against institutional growth metrics. Current payroll efficiency is at 94.2% based on staff-student ratio benchmarks.</p>
+                          <div className="flex items-center space-x-3 text-red-600 font-black uppercase text-[10px] tracking-widest bg-white w-fit px-6 py-3 rounded-xl shadow-sm border border-red-100">
+                             <AlertCircle size={14} /> <span>Audited Registry Verified</span>
+                          </div>
+                       </div>
+                    </div>
+                 )}
+
+                 {activeGrowthTab === 'net' && (
+                    <div className="flex flex-col md:flex-row gap-12 items-center">
+                       <div className="md:w-1/3 text-center md:text-left">
+                          <div className="w-20 h-20 bg-femac-yellow text-femac-900 rounded-[2rem] flex items-center justify-center mb-8 mx-auto md:mx-0 shadow-xl border-4 border-femac-900">
+                             <Trophy size={36} />
+                          </div>
+                          <h4 className="text-4xl font-black text-femac-900 tracking-tighter uppercase leading-none mb-4">Financial <span className="text-femac-yellow">Health</span> Index</h4>
+                          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-loose">Based on verified registry flow, FEMAC Academy shows a net positive retained growth of <span className="text-femac-900 font-black">22.5%</span> year-on-year.</p>
+                       </div>
+                       <div className="md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                          <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl flex flex-col justify-between h-[280px] relative overflow-hidden group">
+                             <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+                             <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Registry Reserve</p>
+                                <h5 className="text-5xl font-black text-femac-900 tracking-tighter leading-none uppercase">Verified Flow</h5>
+                             </div>
+                             <div className="mt-8">
+                                <p className="text-4xl font-black text-green-600 tracking-tighter">K {(growthData.current.netProfit * 0.6).toLocaleString()}</p>
+                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-2">60% Of Net Retained</p>
                              </div>
                           </div>
-
-                          {/* ACTION PANEL */}
-                          <div className="bg-femac-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-center">
-                             <div className="absolute top-0 right-0 w-32 h-32 bg-femac-yellow opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-                             <h6 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center">
-                                <Scale size={24} className="mr-3 text-femac-yellow" /> Final Executive Determination
-                             </h6>
-                             
-                             <div className="space-y-4">
-                                {(selectedStudent.applicationStatus === ApplicationStatus.PENDING || selectedStudent.applicationStatus === ApplicationStatus.INTERVIEW) ? (
-                                  <>
-                                     <button 
-                                       onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.ACCEPTED)} 
-                                       className="w-full py-5 bg-femac-yellow text-femac-900 rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center hover:bg-white transition-all transform active:scale-95 shadow-xl"
-                                     >
-                                        <CheckCircle size={20} className="mr-3"/> Authorise Official Enrollment
-                                     </button>
-                                     <button 
-                                       onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.INTERVIEW)} 
-                                       className="w-full py-5 bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center hover:bg-blue-400 transition-all transform active:scale-95 shadow-xl"
-                                     >
-                                        <CalendarClock size={20} className="mr-3"/> Subject to Physical Interview
-                                     </button>
-                                     <button 
-                                       onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.DECLINED)} 
-                                       className="w-full py-5 bg-red-600/20 text-red-400 border-2 border-red-600/30 rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center hover:bg-red-600 hover:text-white transition-all transform active:scale-95"
-                                     >
-                                        <XCircle size={20} className="mr-3"/> Decline & Reject Admission
-                                     </button>
-                                  </>
-                                ) : (
-                                  <div className="text-center py-12 border-2 border-dashed border-white/20 rounded-[2rem] bg-white/5">
-                                     <p className="text-xs font-black uppercase tracking-widest text-femac-yellow mb-2">Determination Synchronized</p>
-                                     <p className="text-[10px] font-bold text-white/50 uppercase">Current Status: {selectedStudent.applicationStatus}</p>
-                                     <button onClick={() => MockDB.updateStudentStatus(selectedStudent.id, ApplicationStatus.PENDING)} className="mt-6 text-[8px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors">Reset Application to Pending Review</button>
-                                  </div>
-                                )}
+                          <div className="bg-femac-900 p-10 rounded-[3rem] shadow-xl text-white flex flex-col justify-between h-[280px] relative overflow-hidden">
+                             <div className="absolute top-0 right-0 w-24 h-24 bg-femac-yellow opacity-10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+                             <div>
+                                <p className="text-[10px] font-black text-femac-400 uppercase tracking-widest mb-2">Capital Expenditure</p>
+                                <h5 className="text-5xl font-black text-white tracking-tighter leading-none uppercase">Expansion Cap</h5>
                              </div>
-
-                             <div className="mt-10 p-6 bg-white/5 rounded-2xl border border-white/10 flex items-start space-x-4">
-                                <AlertCircle size={20} className="text-femac-yellow shrink-0 mt-1" />
-                                <p className="text-[9px] font-bold text-white/60 uppercase leading-relaxed tracking-wide">
-                                   Legal Notice: Determination here instantly propagates to the candidate's tracking dashboard. Acceptance generates an official digital registry token.
-                                </p>
+                             <div className="mt-8">
+                                <p className="text-4xl font-black text-femac-yellow tracking-tighter">K {(growthData.current.netProfit * 0.4).toLocaleString()}</p>
+                                <p className="text-[9px] font-black text-femac-400 uppercase tracking-widest mt-2">40% Of Net Retained</p>
                              </div>
                           </div>
                        </div>
                     </div>
-                 </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {activePage === 'messages' && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[750px] animate-in slide-in-from-right-4 duration-500">
+          <div className="lg:col-span-1 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+            <div className="p-8 border-b border-slate-50">
+               <h3 className="text-xl font-black text-femac-900 uppercase tracking-tight">Active Sessions</h3>
+               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Institutional Registry Comms</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+               {chatSessions.length === 0 ? (
+                 <div className="py-20 text-center text-slate-300 uppercase font-black text-[9px]">No Active Registry Chats</div>
+               ) : (
+                 chatSessions.map(sess => (
+                   <button 
+                     key={sess.id} 
+                     onClick={() => setActiveChatId(sess.id)}
+                     className={`w-full p-6 rounded-3xl text-left border-2 transition-all relative ${activeChatId === sess.id ? 'bg-femac-900 border-femac-900 shadow-xl' : 'bg-slate-50 border-slate-50 hover:border-femac-yellow'}`}
+                   >
+                     <div className="flex justify-between items-start mb-2">
+                        <p className={`text-[11px] font-black uppercase tracking-tight ${activeChatId === sess.id ? 'text-white' : 'text-femac-900'}`}>{sess.parentName}</p>
+                        {sess.status === 'REQUESTED' && <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)]"></div>}
+                     </div>
+                     <p className={`text-[9px] font-black uppercase tracking-widest mb-4 ${activeChatId === sess.id ? 'text-femac-400' : 'text-slate-400'}`}>{sess.parentId}</p>
+                     
+                     {sess.status === 'REQUESTED' ? (
+                        <div className="bg-red-50 text-red-600 p-3 rounded-xl border border-red-100 flex items-center justify-center animate-pulse">
+                           <Headset size={12} className="mr-2" />
+                           <span className="text-[8px] font-black uppercase tracking-widest">Escalation Node</span>
+                        </div>
+                     ) : sess.status === 'ACTIVE' ? (
+                        <div className="bg-green-50 text-green-600 p-3 rounded-xl border border-green-100 flex items-center justify-center">
+                           <Check size={12} className="mr-2" />
+                           <span className="text-[8px] font-black uppercase tracking-widest">Connected</span>
+                        </div>
+                     ) : (
+                        <div className="bg-blue-50 text-blue-600 p-3 rounded-xl border border-blue-100 flex items-center justify-center">
+                           <Bot size={12} className="mr-2" />
+                           <span className="text-[8px] font-black uppercase tracking-widest">AI Assisted</span>
+                        </div>
+                     )}
+                   </button>
+                 ))
                )}
+            </div>
+          </div>
+
+          <div className="lg:col-span-3 bg-white rounded-[3.5rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden relative">
+            {activeChat ? (
+              <>
+                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-femac-900 text-white">
+                   <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-femac-yellow rounded-2xl flex items-center justify-center text-femac-900 shadow-xl">
+                        <UserLarge size={24} />
+                      </div>
+                      <div>
+                        <h4 className="text-xl font-black uppercase tracking-tight leading-none">{activeChat.parentName}</h4>
+                        <p className="text-[9px] font-black text-femac-400 uppercase tracking-widest mt-2">Node: {activeChat.parentId} • Status: {activeChat.status}</p>
+                      </div>
+                   </div>
+                   <div className="flex items-center space-x-3">
+                      {activeChat.status === 'REQUESTED' && (
+                        <button 
+                          onClick={() => handleAcceptChat(activeChat.id)}
+                          className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center animate-in zoom-in"
+                        >
+                          <Headset size={14} className="mr-2" /> Accept Request
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleCloseChat(activeChat.id)}
+                        className="bg-white/10 hover:bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/20 transition-all"
+                      >
+                        Close Registry Node
+                      </button>
+                   </div>
+                </div>
+
+                <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-10 space-y-6 custom-scrollbar bg-slate-50/30">
+                  {activeChat.messages.map(msg => (
+                    <div key={msg.id} className={`flex ${msg.senderRole === UserRole.EXECUTIVE_ACCOUNTS ? 'justify-end' : 'justify-start'}`}>
+                       <div className={`max-w-[70%] p-6 rounded-[2rem] text-sm font-bold shadow-sm ${msg.senderRole === UserRole.EXECUTIVE_ACCOUNTS ? 'bg-femac-900 text-white rounded-br-none' : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none'}`}>
+                          {msg.text}
+                          <div className={`text-[8px] mt-3 font-black uppercase tracking-widest opacity-40 ${msg.senderRole === UserRole.EXECUTIVE_ACCOUNTS ? 'text-femac-200' : 'text-slate-400'}`}>
+                            {msg.isAi ? 'Registry AI' : msg.senderRole} • {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+                </div>
+
+                {activeChat.status === 'ACTIVE' && (
+                  <form onSubmit={handleSendChatMessage} className="p-8 border-t border-slate-50 bg-white">
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        value={chatInput} 
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="Type executive response..." 
+                        className="w-full pl-8 pr-16 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-bold text-slate-700 focus:border-femac-yellow" 
+                      />
+                      <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 bg-femac-900 text-femac-yellow p-4 rounded-2xl hover:bg-femac-yellow hover:text-femac-900 shadow-xl transition-all">
+                        <Send size={24} />
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-20 text-slate-300">
+                 <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
+                   <MessageCircleQuestion size={48} className="opacity-20" />
+                 </div>
+                 <h4 className="text-3xl font-black text-femac-900/10 uppercase tracking-tighter">Select a Registry Node to Begin</h4>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-4">Authorized Executive Comms Terminal</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Announcement Log Modal */}
+      {showAnnModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden relative animate-in zoom-in duration-300">
+            <button onClick={() => setShowAnnModal(false)} className="absolute top-10 right-10 z-[110] text-slate-300 hover:text-femac-900 transition-colors p-2"><X size={32} /></button>
+            
+            <div className="flex-1 flex flex-col md:flex-row h-full">
+              {/* Left Side: Create Form */}
+              <div className="md:w-5/12 bg-slate-50 border-r border-slate-100 p-12 overflow-y-auto custom-scrollbar">
+                <div className="mb-12">
+                   <h4 className="text-3xl font-black text-femac-900 tracking-tighter uppercase leading-none">Broadcast <span className="text-femac-yellow">Registry</span></h4>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-3">Add New Global Announcement</p>
+                </div>
+
+                <form onSubmit={handleCreateAnnouncement} className="space-y-8">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Title (Auto-Upper)</label>
+                    <input required type="text" value={newAnnTitle} onChange={(e) => setNewAnnTitle(e.target.value)} placeholder="e.g. 2026 ENROLLMENT NOW OPEN" className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-black text-xs text-femac-900 focus:border-femac-yellow transition-all" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Primary Message</label>
+                    <textarea required rows={5} value={newAnnContent} onChange={(e) => setNewAnnContent(e.target.value)} placeholder="Enter details for the landing page notice board..." className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-bold text-xs text-slate-700 focus:border-femac-yellow transition-all leading-relaxed" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Asset Image URL (Optional)</label>
+                    <div className="relative">
+                      <ImageIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                      <input type="text" value={newAnnImage} onChange={(e) => setNewAnnImage(e.target.value)} placeholder="https://..." className="w-full pl-14 pr-5 py-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-bold text-xs text-slate-700 focus:border-femac-yellow transition-all" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Broadcast Priority</label>
+                    <div className="flex bg-white p-1.5 rounded-2xl border-2 border-slate-100">
+                       <button type="button" onClick={() => setNewAnnPriority('NORMAL')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newAnnPriority === 'NORMAL' ? 'bg-femac-900 text-white shadow-lg' : 'text-slate-400 hover:text-femac-900'}`}>Normal Node</button>
+                       <button type="button" onClick={() => setNewAnnPriority('URGENT')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newAnnPriority === 'URGENT' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400 hover:text-red-600'}`}>Urgent Alert</button>
+                    </div>
+                  </div>
+
+                  <button disabled={isSubmittingAnn} type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-sm shadow-2xl hover:bg-femac-yellow hover:text-femac-900 transition-all flex items-center justify-center space-x-3 active:scale-[0.98]">
+                    {isSubmittingAnn ? <Loader2 size={20} className="animate-spin" /> : <Megaphone size={20} />}
+                    <span>Publish to Registry</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Right Side: Announcement Log */}
+              <div className="flex-1 p-16 overflow-y-auto custom-scrollbar bg-white">
+                <div className="mb-12 flex justify-between items-end">
+                   <div>
+                      <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-2">Notice Board <span className="text-femac-yellow">Log</span></h5>
+                      <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.4em]">Active Institutional Broadcasts</p>
+                   </div>
+                   <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Nodes</p>
+                      <p className="text-xl font-black text-femac-900">{announcements.length}</p>
+                   </div>
+                </div>
+
+                <div className="space-y-6">
+                   {announcements.length === 0 ? (
+                      <div className="py-24 text-center">
+                         <Megaphone size={64} className="text-slate-100 mx-auto mb-6" />
+                         <p className="text-slate-300 font-black uppercase tracking-widest text-xs">No active broadcasts in registry</p>
+                      </div>
+                   ) : (
+                      announcements.map(ann => (
+                         <div key={ann.id} className="group bg-white p-8 rounded-[2.5rem] border border-slate-100 hover:border-femac-yellow hover:shadow-xl transition-all flex items-start gap-8">
+                            <div className="w-24 h-24 rounded-3xl bg-slate-50 flex-shrink-0 overflow-hidden relative shadow-inner">
+                               {ann.imageUrl ? (
+                                  <img src={ann.imageUrl} className="w-full h-full object-cover" alt="" />
+                               ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-200"><ImageIcon size={32}/></div>
+                               )}
+                               {ann.priority === 'URGENT' && (
+                                  <div className="absolute top-2 right-2 w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-sm"></div>
+                               )}
+                            </div>
+                            <div className="flex-1">
+                               <div className="flex justify-between items-start mb-2">
+                                  <div>
+                                     <div className="flex items-center space-x-3 mb-1">
+                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${ann.priority === 'URGENT' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-femac-50 text-femac-600 border-femac-100'}`}>{ann.priority} NODE</span>
+                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{ann.date}</span>
+                                     </div>
+                                     <h6 className="text-lg font-black text-femac-900 uppercase tracking-tight leading-none mb-4 group-hover:text-femac-yellow transition-colors">{ann.title}</h6>
+                                  </div>
+                                  <button onClick={() => handleDeleteAnnouncement(ann.id)} className="p-3 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
+                               </div>
+                               <p className="text-xs font-bold text-slate-500 leading-relaxed line-clamp-2">{ann.content}</p>
+                            </div>
+                         </div>
+                      ))
+                   )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1207,11 +872,3 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
     </div>
   );
 };
-
-/* Missing icons added for the refined UI */
-const SearchCode = ({ size, className, ...props }: any) => (
-  <div className={`flex items-center justify-center ${className}`} {...props}>
-    <Search size={size} className="absolute" />
-    <ShieldCheck size={size * 0.5} className="relative translate-y-2 translate-x-2" />
-  </div>
-);

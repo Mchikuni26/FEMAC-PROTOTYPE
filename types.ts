@@ -199,3 +199,10 @@ export interface Announcement {
   imageUrl?: string;
   priority: 'NORMAL' | 'URGENT';
 }
+
+export interface SchoolSettings {
+  id?: number;
+  address: string;
+  phone: string;
+  email: string;
+}

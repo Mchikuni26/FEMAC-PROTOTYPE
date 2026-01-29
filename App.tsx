@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { User, UserRole, ApplicationStatus, Announcement } from './types';
+import { User, UserRole, ApplicationStatus, Announcement, SchoolSettings } from './types';
 import { MOCK_USERS } from './constants';
 import { MockDB } from './services/mockDb';
 import { Layout } from './components/Layout';
@@ -17,10 +18,9 @@ import {
   User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload, Download,
   Home, Lock, MessageCircle, Facebook, Hash, Map, UserCheck, Search, SearchCode,
   CheckCircle, XCircle, Clock, FileCheck, Briefcase, IdCard, Star, Timer, ShieldAlert,
-  ChevronLeft, Megaphone, CalendarClock, RotateCw, Volume2, VolumeX
+  ChevronLeft, Megaphone, CalendarClock, RotateCw, Volume2, VolumeX, Loader2, Send, Cpu
 } from 'lucide-react';
 
-// Helper function for role display labels
 const getRoleDisplayLabel = (role: UserRole) => {
   if (role === UserRole.EXECUTIVE_ACCOUNTS) return 'EXECUTIVE / ACCOUNTS';
   return role.replace('_', ' ');
@@ -31,35 +31,39 @@ const AnnouncementSlideshow: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    setAnnouncements(MockDB.getAnnouncements());
+    const load = async () => {
+      const data = await MockDB.getAnnouncements();
+      setAnnouncements(data);
+    };
+    load();
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (announcements.length > 0 ? (prev + 1) % announcements.length : 0));
     }, 10000);
     return () => clearInterval(interval);
-  }, [announcements.length]);
+  }, []);
 
   if (announcements.length === 0) return null;
 
   const current = announcements[currentIndex];
 
   return (
-    <section className="py-24 px-6 bg-slate-50 relative overflow-hidden border-t border-slate-100">
+    <section className="py-24 px-6 bg-slate-900 relative overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-12">
-          <div>
+          <div className="relative z-10">
             <h2 className="text-sm font-black text-femac-yellow uppercase tracking-[0.4em] mb-3">Notice Board</h2>
-            <h3 className="text-5xl font-black text-femac-900 tracking-tighter leading-none uppercase">School <span className="text-femac-yellow">Broadcasts</span></h3>
+            <h3 className="text-5xl font-black text-white tracking-tighter leading-none uppercase">School <span className="text-femac-yellow">Broadcasts</span></h3>
           </div>
-          <div className="flex items-center space-x-4">
-             <button onClick={() => setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length)} className="w-14 h-14 rounded-2xl bg-white border-2 border-slate-100 text-femac-900 flex items-center justify-center hover:border-femac-yellow transition-all shadow-sm active:scale-95"><ChevronLeft size={24}/></button>
-             <button onClick={() => setCurrentIndex(prev => (prev + 1) % announcements.length)} className="w-14 h-14 rounded-2xl bg-femac-900 text-femac-yellow flex items-center justify-center hover:bg-femac-800 transition-all shadow-xl active:scale-95"><ChevronRight size={24}/></button>
+          <div className="flex items-center space-x-4 relative z-10">
+             <button onClick={() => setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length)} className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-sm active:scale-95"><ChevronLeft size={24}/></button>
+             <button onClick={() => setCurrentIndex(prev => (prev + 1) % announcements.length)} className="w-14 h-14 rounded-2xl bg-femac-yellow text-femac-900 flex items-center justify-center hover:bg-white transition-all shadow-xl active:scale-95"><ChevronRight size={24}/></button>
           </div>
         </div>
 
-        <div className="relative h-[600px] rounded-[4rem] overflow-hidden shadow-2xl bg-femac-900 group" key={current.id}>
+        <div className="relative h-[700px] rounded-[4rem] overflow-hidden shadow-2xl bg-femac-800 group" key={current.id}>
            {current.imageUrl ? (
              <>
-               <img src={current.imageUrl} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[10s] ease-linear" alt={current.title} />
+               <img src={current.imageUrl} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[15s] ease-linear" alt={current.title} />
                <div className="absolute inset-0 bg-gradient-to-t from-femac-900 via-femac-900/40 to-transparent"></div>
              </>
            ) : (
@@ -76,15 +80,15 @@ const AnnouncementSlideshow: React.FC = () => {
                   </span>
                   <span className="text-xs font-black text-white/60 uppercase tracking-widest">{current.date}</span>
                 </div>
-                <h4 className="text-4xl md:text-7xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-8">
+                <h4 className="text-4xl md:text-8xl font-black text-white uppercase tracking-tighter leading-[0.85] mb-8">
                   {current.title}
                 </h4>
-                <p className="text-xl md:text-2xl text-femac-100 font-medium leading-relaxed mb-10 opacity-90">
+                <p className="text-xl md:text-3xl text-femac-100 font-medium leading-tight mb-12 opacity-90 max-w-2xl">
                   {current.content}
                 </p>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3">
                    {announcements.map((_, idx) => (
-                     <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${idx === currentIndex ? 'w-12 bg-femac-yellow' : 'w-3 bg-white/20'}`}></div>
+                     <button key={idx} onClick={() => setCurrentIndex(idx)} className={`h-2 rounded-full transition-all duration-500 ${idx === currentIndex ? 'w-16 bg-femac-yellow' : 'w-4 bg-white/20 hover:bg-white/40'}`}></button>
                    ))}
                 </div>
               </div>
@@ -99,8 +103,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<'website' | 'login' | 'portal'>('website');
   const [activePage, setActivePage] = useState('dashboard');
-  const [isMuted, setIsMuted] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [settings, setSettings] = useState<SchoolSettings | null>(null);
   
   // Login Sub-States
   const [loginStep, setLoginStep] = useState<'role' | 'grade' | 'password'>('role');
@@ -112,8 +115,8 @@ const App: React.FC = () => {
   // Admission States
   const [showAdmissionModal, setShowAdmissionModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [activeAdmissionTab, setActiveAdmissionTab] = useState<null | 'fees' | 'form' | 'tracker' | 'policy'>(null);
-  const [isFillingForm, setIsFillingForm] = useState(false);
+  const [activeAdmissionTab, setActiveAdmissionTab] = useState<'fees' | 'form' | 'tracker' | 'policy'>('fees');
+  const [transmissionStep, setTransmissionStep] = useState<'IDLE' | 'ENCRYPTING' | 'TRANSMITTING' | 'FINALIZING'>('IDLE');
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
 
@@ -138,43 +141,15 @@ const App: React.FC = () => {
   const [trackerSearchTerm, setTrackerSearchTerm] = useState('');
   const [trackedApplication, setTrackedApplication] = useState<any>(null);
 
-  const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png"; 
-  const BGM_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"; // Gentle Ambient Piano
+  const LOGO_URL = "https://i.ibb.co/LzfNqjW0/femac-logo.png";
 
   useEffect(() => {
-    const handleFirstInteraction = () => {
-      if (view === 'website' && audioRef.current && !isMuted) {
-        audioRef.current.play().catch(() => {});
-        window.removeEventListener('click', handleFirstInteraction);
-      }
+    const loadData = async () => {
+      const schoolSettings = await MockDB.getSchoolSettings();
+      setSettings(schoolSettings);
     };
-
-    if (view === 'website') {
-      window.addEventListener('click', handleFirstInteraction);
-      if (audioRef.current) {
-        audioRef.current.volume = 0.3;
-        audioRef.current.play().catch(() => {
-          // Fallback to click listener handled above
-        });
-      }
-    } else {
-      audioRef.current?.pause();
-    }
-
-    return () => window.removeEventListener('click', handleFirstInteraction);
-  }, [view, isMuted]);
-
-  const toggleMute = () => {
-    if (audioRef.current) {
-      if (isMuted) {
-        audioRef.current.play();
-        setIsMuted(false);
-      } else {
-        audioRef.current.pause();
-        setIsMuted(true);
-      }
-    }
-  };
+    loadData();
+  }, []);
 
   const handleRoleSelect = (role: UserRole) => {
     if (role === UserRole.TEACHER) {
@@ -247,47 +222,64 @@ const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newStudent = MockDB.createStudent({
-      firstName: formFirstName,
-      lastName: formLastName,
-      gender: formGender,
-      grade: parseInt(formGrade),
-      dob: formDob,
-      previousSchool: formPrevSchool,
-      guardianName: formGuardianName,
-      parentNrc: formParentNrc,
-      relationship: formRelationship,
-      occupation: formOccupation,
-      phone: formPhone,
-      email: formEmail,
-      address: formAddress,
-      emergencyName: formEmergencyName,
-      emergencyPhone: formEmergencyPhone,
-      parentId: 'U-PAR-PROSPECT'
-    });
-    setLastSubmissionId(newStudent.id);
-    setFormSubmitted(true);
-    setFormFirstName(''); setFormLastName(''); setFormGender(''); setFormGrade(''); setFormDob(''); setFormPrevSchool('');
-    setFormGuardianName(''); setFormParentNrc(''); setFormRelationship(''); setFormOccupation(''); 
-    setFormPhone(''); setFormEmail(''); setFormAddress('');
-    setFormEmergencyName(''); setFormEmergencyPhone('');
+    setTransmissionStep('ENCRYPTING');
+    
+    // Simulate high-fidelity technical sequence
+    await new Promise(r => setTimeout(r, 1500));
+    setTransmissionStep('TRANSMITTING');
+    await new Promise(r => setTimeout(r, 2500));
+    setTransmissionStep('FINALIZING');
+    await new Promise(r => setTimeout(r, 1000));
+
+    try {
+        const newStudent = await MockDB.createStudent({
+            firstName: formFirstName,
+            lastName: formLastName,
+            gender: formGender,
+            grade: parseInt(formGrade),
+            dob: formDob,
+            previousSchool: formPrevSchool,
+            guardianName: formGuardianName,
+            parentNrc: formParentNrc,
+            relationship: formRelationship,
+            occupation: formOccupation,
+            phone: formPhone,
+            email: formEmail,
+            address: formAddress,
+            emergencyName: formEmergencyName,
+            emergencyPhone: formEmergencyPhone,
+            parentId: 'U-PAR-PROSPECT'
+        });
+        setLastSubmissionId(newStudent.id);
+        setFormSubmitted(true);
+        // Clear fields
+        setFormFirstName(''); setFormLastName(''); setFormGender(''); setFormGrade(''); setFormDob(''); setFormPrevSchool('');
+        setFormGuardianName(''); setFormParentNrc(''); setFormRelationship(''); setFormOccupation(''); 
+        setFormPhone(''); setFormEmail(''); setFormAddress('');
+        setFormEmergencyName(''); setFormEmergencyPhone('');
+    } catch (err) {
+        console.error(err);
+        alert("Transmission to Executive Registry Failed. Check Node connection.");
+    } finally {
+        setTransmissionStep('IDLE');
+    }
   };
 
-  const handleTrackApplication = (e: React.FormEvent) => {
+  const handleTrackApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = MockDB.getStudentById(trackerSearchTerm.toUpperCase());
+    const result = await MockDB.getStudentById(trackerSearchTerm.toUpperCase());
     setTrackedApplication(result || 'NOT_FOUND');
   };
 
   const closeAdmissionRegistry = () => {
     setShowAdmissionModal(false);
-    setActiveAdmissionTab(null);
-    setIsFillingForm(false);
+    setActiveAdmissionTab('fees');
     setFormSubmitted(false);
     setTrackerSearchTerm('');
     setTrackedApplication(null);
+    setTransmissionStep('IDLE');
   };
 
   if (view === 'login') {
@@ -296,7 +288,7 @@ const App: React.FC = () => {
     const teacherUsers = MOCK_USERS.filter(u => teacherUserIds.includes(u.id));
     return (
       <div className="min-h-screen bg-slate-200 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none">
           <img src={LOGO_URL} alt="" className="w-[800px] h-[800px] object-contain" />
         </div>
         <div className="bg-white rounded-[3rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.3)] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative z-10 border border-white/40">
@@ -306,7 +298,7 @@ const App: React.FC = () => {
                <span className="mr-2 group-hover:-translate-x-1 transition-transform">←</span> Return Home
              </button>
              <div className="mb-12">
-               <img src={LOGO_URL} alt="Logo" className="w-32 h-32 mb-10 object-contain filter drop-shadow-[0_0_20px_rgba(250,204,21,0.2)]" />
+               <img src={LOGO_URL} alt="Logo" className="w-40 h-40 mb-10 object-contain filter drop-shadow-[0_0_24px_rgba(250,204,21,0.3)]" />
                <h1 className="text-7xl font-black mb-2 tracking-tighter relative text-femac-yellow leading-none uppercase">FAIMS<span className="text-white">.</span></h1>
                <p className="text-femac-300 text-lg font-black uppercase tracking-[0.4em] opacity-80">Portal Access</p>
              </div>
@@ -396,25 +388,20 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white relative">
-      <audio ref={audioRef} src={BGM_URL} loop />
-      <div className="fixed inset-0 flex items-center justify-center opacity-[0.02] pointer-events-none z-0">
+      <div className="fixed inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none z-0">
         <img src={LOGO_URL} alt="" className="w-[800px] h-[800px] object-contain rotate-12" />
       </div>
 
       <nav className="fixed top-0 w-full bg-femac-900/95 backdrop-blur-md text-white z-50 shadow-lg border-b border-femac-yellow/20">
         <div className="px-6 py-4 flex justify-between items-center">
           <button onClick={handleGoHome} className="flex items-center space-x-4 hover:opacity-80 transition-opacity">
-            <img src={LOGO_URL} alt="FEMAC Logo" className="h-12 w-12 object-contain" />
+            <img src={LOGO_URL} alt="FEMAC Logo" className="h-14 w-14 object-contain" />
             <div className="flex flex-col text-left">
               <span className="text-3xl font-black tracking-tighter text-femac-yellow leading-none uppercase">FEMAC ACADEMY</span>
               <span className="text-[11px] tracking-[0.25em] text-femac-300 font-black uppercase">Dedicated to Excellence</span>
             </div>
           </button>
           <div className="hidden lg:flex items-center space-x-8 text-xs font-black uppercase tracking-widest text-femac-100">
-            <button onClick={toggleMute} className="flex items-center space-x-2 text-femac-yellow hover:text-white transition-all bg-white/5 px-4 py-2 rounded-full border border-white/10 group">
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} className="animate-pulse" />}
-              <span className="text-[10px]">{isMuted ? 'UNMUTE AMBIENCE' : 'MUTE AMBIENCE'}</span>
-            </button>
             <button onClick={() => setShowCalendarModal(true)} className="flex items-center text-femac-yellow hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-full border border-white/10">
               <Calendar size={14} className="mr-2" /> Calendar
             </button>
@@ -462,6 +449,318 @@ const App: React.FC = () => {
         </div>
       </header>
 
+      {showAdmissionModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
+           {transmissionStep !== 'IDLE' && (
+              <div className="absolute inset-0 z-[150] flex items-center justify-center bg-femac-900/80 backdrop-blur-md text-white p-12">
+                  <div className="max-w-md w-full text-center space-y-8 animate-in zoom-in duration-500">
+                      <div className="relative w-32 h-32 mx-auto">
+                        <div className="absolute inset-0 border-4 border-femac-yellow/20 rounded-full"></div>
+                        <div className={`absolute inset-0 border-t-4 border-femac-yellow rounded-full animate-spin`}></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Cpu size={40} className="text-femac-yellow animate-pulse" />
+                        </div>
+                      </div>
+                      <div>
+                          <h4 className="text-3xl font-black tracking-tighter uppercase mb-2">Secure Link</h4>
+                          <p className="text-femac-400 font-black uppercase text-[10px] tracking-[0.3em]">
+                            {transmissionStep === 'ENCRYPTING' && 'Encrypting Application Node...'}
+                            {transmissionStep === 'TRANSMITTING' && 'Uploading to Executive Registry...'}
+                            {transmissionStep === 'FINALIZING' && 'Verifying Data Integrity...'}
+                          </p>
+                      </div>
+                      <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                        <div className={`h-full bg-femac-yellow transition-all duration-[4s] ease-out ${transmissionStep === 'ENCRYPTING' ? 'w-1/3' : transmissionStep === 'TRANSMITTING' ? 'w-2/3' : 'w-full'}`}></div>
+                      </div>
+                  </div>
+              </div>
+           )}
+           
+           <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden relative animate-in zoom-in duration-300">
+              <button onClick={closeAdmissionRegistry} className="absolute top-10 right-10 z-[110] text-slate-300 hover:text-femac-900 transition-colors p-2"><X size={32} /></button>
+              
+              <div className="flex-1 flex flex-col md:flex-row h-full">
+                <div className="md:w-1/3 bg-slate-50 border-r border-slate-100 p-12 flex flex-col">
+                  <div className="flex items-center space-x-4 mb-12">
+                    <img src={LOGO_URL} alt="Logo" className="w-16 h-16" />
+                    <h4 className="text-2xl font-black text-femac-900 tracking-tighter uppercase leading-none">Admission<br/><span className="text-femac-yellow">Registry</span></h4>
+                  </div>
+                  
+                  <nav className="space-y-4 flex-1">
+                    {[
+                      { id: 'fees', label: 'Fee Structure', icon: DollarSign },
+                      { id: 'form', label: 'Apply Now', icon: UserPlus },
+                      { id: 'tracker', label: 'Track Application', icon: SearchCode },
+                      { id: 'policy', label: 'Guidelines', icon: ShieldCheck }
+                    ].map(tab => (
+                      <button 
+                        key={tab.id} 
+                        onClick={() => setActiveAdmissionTab(tab.id as any)}
+                        className={`w-full flex items-center space-x-4 px-8 py-5 rounded-3xl font-black uppercase text-xs tracking-widest transition-all ${activeAdmissionTab === tab.id ? 'bg-femac-900 text-white shadow-2xl scale-105' : 'text-slate-400 hover:bg-slate-100 hover:text-femac-900'}`}
+                      >
+                        <tab.icon size={20} />
+                        <span>{tab.label}</span>
+                      </button>
+                    ))}
+                  </nav>
+
+                  <div className="mt-auto bg-femac-900 p-8 rounded-[2rem] text-white">
+                    <p className="text-[9px] font-black uppercase tracking-[0.3em] text-femac-yellow mb-2">Support Desk</p>
+                    <div className="flex items-center space-x-3 text-xs mb-3 font-bold"><Phone size={14} /> <span>{settings?.phone || '+260 972 705 347'}</span></div>
+                    <div className="flex items-center space-x-3 text-xs font-bold"><Mail size={14} /> <span>{settings?.email || 'admissions@femac.edu.zm'}</span></div>
+                  </div>
+                </div>
+
+                <div className="flex-1 p-16 overflow-y-auto custom-scrollbar bg-white">
+                  {activeAdmissionTab === 'fees' && (
+                    <div className="animate-in slide-in-from-right-4 duration-500">
+                      <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-2">Academic <span className="text-femac-yellow">Investment</span></h5>
+                      <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.4em] mb-12">2026 Registry Billing Structure</p>
+                      
+                      <div className="grid grid-cols-1 gap-6">
+                        {[
+                          { level: 'Primary Division', grades: 'Grades 1-7', fee: 'K3,500', icon: BookOpen },
+                          { level: 'Junior Secondary', grades: 'Grades 8-9', fee: 'K4,800', icon: Microscope },
+                          { level: 'Senior Secondary', grades: 'Grades 10-12', fee: 'K6,200', icon: GraduationCap }
+                        ].map((item, idx) => (
+                          <div key={idx} className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 flex items-center justify-between group hover:bg-white hover:border-femac-yellow hover:shadow-xl transition-all">
+                            <div className="flex items-center space-x-6">
+                              <div className="p-4 bg-white rounded-2xl text-femac-900 shadow-sm group-hover:bg-femac-900 group-hover:text-femac-yellow transition-colors"><item.icon size={24} /></div>
+                              <div>
+                                <p className="font-black text-xl text-femac-900 uppercase tracking-tight">{item.level}</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{item.grades}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Per Term</p>
+                              <p className="text-3xl font-black text-femac-900 tracking-tighter">{item.fee}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-12 bg-femac-50 p-8 rounded-[2rem] border-2 border-dashed border-femac-100">
+                        <div className="flex items-start space-x-4">
+                          <Info className="text-femac-900 mt-1" size={24} />
+                          <div>
+                            <p className="font-black text-femac-900 uppercase text-sm mb-2">Note to Parents</p>
+                            <p className="text-xs text-slate-500 font-medium leading-loose">Fees are inclusive of all academic resources, laboratory access, and basic sports participation. Admission fees are one-time and payable upon successful acceptance into the registry node.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeAdmissionTab === 'form' && (
+                    <div className="animate-in slide-in-from-right-4 duration-500">
+                      {formSubmitted ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center">
+                          <div className="w-24 h-24 bg-green-50 text-green-600 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-xl border-2 border-green-100"><CheckCircle2 size={56} /></div>
+                          <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-4">Application Synchronized</h5>
+                          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-12 max-w-sm mx-auto">Your request is now in the Executive Review node. Use your Registry ID to track progress.</p>
+                          <div className="bg-slate-900 p-8 rounded-[2rem] text-white w-full max-w-sm mb-12">
+                            <p className="text-[9px] font-black text-femac-yellow uppercase tracking-[0.4em] mb-2">Assigned Registry ID</p>
+                            <p className="text-4xl font-black tracking-tighter">{lastSubmissionId}</p>
+                          </div>
+                          <button onClick={() => setFormSubmitted(false)} className="px-10 py-5 bg-femac-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-femac-yellow hover:text-femac-900 transition-all">Submit Another Application</button>
+                        </div>
+                      ) : (
+                        <>
+                          <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-2">Enroll Your <span className="text-femac-yellow">Child</span></h5>
+                          <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.4em] mb-12">Official 2026 Academic Enrollment Form</p>
+                          
+                          <form onSubmit={handleFormSubmit} className="space-y-12">
+                            <div className="space-y-8">
+                               <div className="flex items-center space-x-4 pb-4 border-b border-slate-100">
+                                  <div className="bg-femac-900 p-2 rounded-lg text-femac-yellow"><UserIcon size={16} /></div>
+                                  <h6 className="font-black uppercase text-xs tracking-[0.2em] text-femac-900">1. Student Identification</h6>
+                               </div>
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">First Name</label>
+                                    <input required value={formFirstName} onChange={(e) => setFormFirstName(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. PETER" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Last Name</label>
+                                    <input required value={formLastName} onChange={(e) => setFormLastName(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. MWAMBA" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Gender</label>
+                                    <select required value={formGender} onChange={(e) => setFormGender(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm appearance-none">
+                                      <option value="">Select Gender...</option>
+                                      <option value="MALE">MALE</option>
+                                      <option value="FEMALE">FEMALE</option>
+                                    </select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Grade Applying For</label>
+                                    <select required value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm appearance-none">
+                                      <option value="">Select Grade...</option>
+                                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => <option key={g} value={g}>Grade {g}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Date of Birth</label>
+                                    <input required value={formDob} onChange={(e) => setFormDob(e.target.value)} type="date" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Previous School</label>
+                                    <input required value={formPrevSchool} onChange={(e) => setFormPrevSchool(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. Katuba Primary" />
+                                  </div>
+                               </div>
+                            </div>
+                            <div className="space-y-8">
+                               <div className="flex items-center space-x-4 pb-4 border-b border-slate-100">
+                                  <div className="bg-femac-900 p-2 rounded-lg text-femac-yellow"><ShieldCheck size={16} /></div>
+                                  <h6 className="font-black uppercase text-xs tracking-[0.2em] text-femac-900">2. Parent / Guardian Details</h6>
+                               </div>
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Full Guardian Name</label>
+                                    <input required value={formGuardianName} onChange={(e) => setFormGuardianName(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. SARAH MWAMBA" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">NRC Number</label>
+                                    <input required value={formParentNrc} onChange={(e) => setFormParentNrc(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. 123456/11/1" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Relationship</label>
+                                    <input required value={formRelationship} onChange={(e) => setFormRelationship(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. MOTHER" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Occupation</label>
+                                    <input required value={formOccupation} onChange={(e) => setFormOccupation(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. TEACHER" />
+                                  </div>
+                               </div>
+                            </div>
+                            <div className="space-y-8">
+                               <div className="flex items-center space-x-4 pb-4 border-b border-slate-100">
+                                  <div className="bg-femac-900 p-2 rounded-lg text-femac-yellow"><Phone size={16} /></div>
+                                  <h6 className="font-black uppercase text-xs tracking-[0.2em] text-femac-900">3. Registry Contact Node</h6>
+                               </div>
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Phone Number</label>
+                                    <input required value={formPhone} onChange={(e) => setFormPhone(e.target.value)} type="tel" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. 0972705347" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Email Address</label>
+                                    <input required value={formEmail} onChange={(e) => setFormEmail(e.target.value)} type="email" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="e.g. parent@example.com" />
+                                  </div>
+                                  <div className="md:col-span-2 space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Physical Residential Address</label>
+                                    <input required value={formAddress} onChange={(e) => setFormAddress(e.target.value)} type="text" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm" placeholder="Plot / House Number, Street, Area" />
+                                  </div>
+                               </div>
+                            </div>
+
+                            <button disabled={transmissionStep !== 'IDLE'} type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.3em] text-lg shadow-2xl hover:bg-femac-yellow hover:text-femac-900 transition-all flex items-center justify-center space-x-4 active:scale-[0.98]">
+                              {transmissionStep !== 'IDLE' ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
+                              <span>Transmit to Executive Portal</span>
+                            </button>
+                          </form>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {activeAdmissionTab === 'tracker' && (
+                    <div className="animate-in slide-in-from-right-4 duration-500">
+                      <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-2">Application <span className="text-femac-yellow">Tracker</span></h5>
+                      <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.4em] mb-12">Registry Status Monitoring Node</p>
+                      
+                      <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 mb-12">
+                         <form onSubmit={handleTrackApplication} className="space-y-6">
+                            <div className="space-y-2">
+                              <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Enter Registry ID (e.g. S-2026-001)</label>
+                              <div className="relative">
+                                <SearchCode className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={24} />
+                                <input required value={trackerSearchTerm} onChange={(e) => setTrackerSearchTerm(e.target.value)} type="text" className="w-full pl-16 pr-6 py-6 bg-white border-2 border-slate-100 rounded-3xl outline-none font-black text-2xl text-femac-900 focus:border-femac-yellow transition-all uppercase tracking-tighter" placeholder="S-2026-XXX" />
+                              </div>
+                            </div>
+                            <button type="submit" className="w-full bg-femac-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-femac-yellow hover:text-femac-900 transition-all shadow-xl">Query Registry Status</button>
+                         </form>
+                      </div>
+
+                      {trackedApplication && (
+                        <div className="animate-in zoom-in duration-300">
+                          {trackedApplication === 'NOT_FOUND' ? (
+                            <div className="bg-red-50 p-10 rounded-[3rem] border border-red-100 text-center">
+                               <XCircle size={48} className="text-red-600 mx-auto mb-6" />
+                               <h6 className="text-xl font-black text-red-900 uppercase mb-2">Registry ID Not Found</h6>
+                               <p className="text-xs font-bold text-red-600 uppercase tracking-widest">Verify the ID and try again.</p>
+                            </div>
+                          ) : (
+                            <div className="bg-white p-10 rounded-[4rem] shadow-xl border border-slate-100">
+                               <div className="flex items-center justify-between mb-10">
+                                  <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-1">Applicant Node</p>
+                                    <h6 className="text-3xl font-black text-femac-900 tracking-tighter uppercase">{trackedApplication.firstName} {trackedApplication.lastName}</h6>
+                                  </div>
+                                  <div className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg ${trackedApplication.applicationStatus === ApplicationStatus.ACCEPTED ? 'bg-green-600 text-white' : (trackedApplication.applicationStatus === ApplicationStatus.DECLINED ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-700 animate-pulse')}`}>
+                                    {trackedApplication.applicationStatus}
+                                  </div>
+                               </div>
+
+                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                                  <div className="bg-slate-50 p-6 rounded-3xl">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Applied Grade</p>
+                                     <p className="text-lg font-black text-femac-900">Grade {trackedApplication.grade}</p>
+                                  </div>
+                                  <div className="bg-slate-50 p-6 rounded-3xl">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Submission Date</p>
+                                     <p className="text-lg font-black text-femac-900">{trackedApplication.submissionDate}</p>
+                                  </div>
+                               </div>
+
+                               {trackedApplication.applicationStatus === ApplicationStatus.INTERVIEW && (
+                                 <div className="bg-femac-900 p-8 rounded-[2rem] text-white flex items-center justify-between">
+                                    <div className="flex items-center space-x-5">
+                                      <CalendarClock size={32} className="text-femac-yellow" />
+                                      <div>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-femac-yellow">Interview Scheduled</p>
+                                        <p className="text-xl font-black tracking-tighter">{trackedApplication.interviewDate || 'To be communicated'}</p>
+                                      </div>
+                                    </div>
+                                    <Info size={24} className="opacity-30" />
+                                 </div>
+                               )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeAdmissionTab === 'policy' && (
+                    <div className="animate-in slide-in-from-right-4 duration-500 space-y-12">
+                      <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-2">Admission <span className="text-femac-yellow">Protocol</span></h5>
+                      <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.4em] mb-12">Registry Node Guidelines</p>
+                      
+                      <div className="space-y-8">
+                         {[
+                           { title: 'Data Integrity', content: 'All information provided must be accurate. False declarations result in automatic de-registration from the registry node.', icon: ShieldAlert },
+                           { title: 'Verification Cycle', content: 'Applications typically move to the "INTERVIEW" or "ACCEPTED" node within 5-7 registry business days.', icon: RotateCw },
+                           { title: 'Settlement Terms', content: 'Enrollment fees are non-refundable and must be settled within 48 hours of acceptance notification.', icon: DollarSign },
+                           { title: 'Equality Node', content: 'FEMAC Academy maintains an inclusive registry regardless of background, focused solely on merit and character potential.', icon: Users }
+                         ].map((p, idx) => (
+                           <div key={idx} className="flex space-x-6">
+                              <div className="p-4 bg-slate-50 rounded-2xl text-femac-900 h-fit"><p.icon size={20} /></div>
+                              <div>
+                                <h6 className="font-black text-lg text-femac-900 uppercase tracking-tight mb-2">{p.title}</h6>
+                                <p className="text-xs text-slate-500 font-medium leading-relaxed">{p.content}</p>
+                              </div>
+                           </div>
+                         ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+           </div>
+        </div>
+      )}
+
       <section id="about" className="py-24 px-6 bg-white relative z-10 scroll-mt-20">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row gap-16 items-center">
@@ -505,518 +804,57 @@ const App: React.FC = () => {
             <h3 className="text-6xl font-black text-femac-900 tracking-tighter leading-none mb-6">Moulding Future <span className="text-femac-yellow">Leaders</span>.</h3>
             <p className="text-slate-500 text-lg max-w-2xl mx-auto font-medium">Our comprehensive curriculum is designed to challenge intellects while fostering character through integrated learning pathways.</p>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 hover:border-femac-yellow transition-all group">
-               <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-femac-yellow transition-colors">
-                  <BookOpen className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={32} />
-               </div>
+               <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-femac-yellow transition-colors"><BookOpen className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={32} /></div>
                <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight mb-4">Primary Division</h4>
                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-6">Grades 1 — 7</p>
                <p className="text-slate-600 font-medium leading-relaxed mb-8">Focusing on fundamental literacy, numeracy, and creative exploration in a supportive, high-engagement environment.</p>
                <ul className="space-y-3">
-                 {['Foundational Literacy', 'Core Mathematics', 'Environmental Science', 'Creative Arts'].map(item => (
-                   <li key={item} className="flex items-center text-xs font-black text-femac-900 uppercase tracking-widest">
-                     <CheckCircle2 size={14} className="text-femac-yellow mr-2" /> {item}
-                   </li>
-                 ))}
+                 {['Foundational Literacy', 'Core Mathematics', 'Environmental Science', 'Creative Arts'].map(item => (<li key={item} className="flex items-center text-xs font-black text-femac-900 uppercase tracking-widest"><CheckCircle2 size={14} className="text-femac-yellow mr-2" /> {item}</li>))}
                </ul>
             </div>
-
             <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 hover:border-femac-yellow transition-all group">
-               <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-femac-yellow transition-colors">
-                  <Microscope className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={32} />
-               </div>
+               <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-femac-yellow transition-colors"><Microscope className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={32} /></div>
                <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight mb-4">Junior Secondary</h4>
                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-6">Grades 8 — 9</p>
                <p className="text-slate-600 font-medium leading-relaxed mb-8">Transitional years emphasizing analytical thinking and the introduction of integrated sciences and social studies.</p>
                <ul className="space-y-3">
-                 {['Integrated Science', 'Social Studies', 'Zambian Languages', 'Introductory ICT'].map(item => (
-                   <li key={item} className="flex items-center text-xs font-black text-femac-900 uppercase tracking-widest">
-                     <CheckCircle2 size={14} className="text-femac-yellow mr-2" /> {item}
-                   </li>
-                 ))}
+                 {['Integrated Science', 'Social Studies', 'Zambian Languages', 'Introductory ICT'].map(item => (<li key={item} className="flex items-center text-xs font-black text-femac-900 uppercase tracking-widest"><CheckCircle2 size={14} className="text-femac-yellow mr-2" /> {item}</li>))}
                </ul>
             </div>
-
             <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 hover:border-femac-yellow transition-all group">
-               <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-femac-yellow transition-colors">
-                  <GraduationCap className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={32} />
-               </div>
+               <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center mb-8 group-hover:bg-femac-yellow transition-colors"><GraduationCap className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={32} /></div>
                <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight mb-4">Senior Secondary</h4>
                <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-6">Grades 10 — 12</p>
                <p className="text-slate-600 font-medium leading-relaxed mb-8">Rigorous academic specialization in Pure Sciences, Business Studies, or Liberal Arts, preparing students for university.</p>
                <ul className="space-y-3">
-                 {['Pure Science Tracks', 'Business & Accounts', 'Literature & History', 'Advanced ICT & Coding'].map(item => (
-                   <li key={item} className="flex items-center text-xs font-black text-femac-900 uppercase tracking-widest">
-                     <CheckCircle2 size={14} className="text-femac-yellow mr-2" /> {item}
-                   </li>
-                 ))}
+                 {['Pure Science Tracks', 'Business & Accounts', 'Literature & History', 'Advanced ICT & Coding'].map(item => (<li key={item} className="flex items-center text-xs font-black text-femac-900 uppercase tracking-widest"><CheckCircle2 size={14} className="text-femac-yellow mr-2" /> {item}</li>))}
                </ul>
             </div>
           </div>
         </div>
       </section>
-
+      
       <section id="admissions" className="py-32 px-6 bg-femac-900 text-white relative overflow-hidden z-10 scroll-mt-20">
-        <div className="absolute inset-0 opacity-10 flex items-center justify-center">
-           <img src={LOGO_URL} alt="" className="w-full h-full object-cover scale-150 rotate-[30deg]" />
-        </div>
+        <div className="absolute inset-0 opacity-10 flex items-center justify-center"><img src={LOGO_URL} alt="" className="w-full h-full object-cover scale-150 rotate-[30deg]" /></div>
         <div className="max-w-4xl mx-auto text-center relative z-20">
           <h3 className="text-7xl font-black mb-10 leading-none tracking-tighter">Begin Your <span className="text-femac-yellow">Legacy</span>.</h3>
           <p className="text-2xl text-femac-300 mb-16 font-medium max-w-2xl mx-auto">Enrollment for the 2026 academic session is now open. Join Zambia's most progressive educational institution.</p>
-          <button 
-            onClick={() => setShowAdmissionModal(true)}
-            className="bg-white text-femac-900 px-14 py-6 rounded-2xl font-black text-2xl hover:bg-femac-yellow transition-all shadow-2xl transform hover:scale-105 active:scale-95"
-          >
-            Open Admission Process
-          </button>
+          <button onClick={() => setShowAdmissionModal(true)} className="bg-white text-femac-900 px-14 py-6 rounded-2xl font-black text-2xl hover:bg-femac-yellow transition-all shadow-2xl transform hover:scale-105 active:scale-95">Open Admission Process</button>
         </div>
       </section>
 
       <AnnouncementSlideshow />
 
-      {showCalendarModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden relative border border-white/20 min-h-[700px] flex flex-col md:flex-row">
-            <button onClick={() => setShowCalendarModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-femac-900 transition-colors z-[110]"><X size={32} /></button>
-            <div className="md:w-1/4 bg-femac-900 p-10 text-white flex flex-col justify-center relative overflow-hidden shrink-0">
-                <div className="absolute -top-10 -left-10 w-40 h-40 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
-                <img src={LOGO_URL} alt="Logo" className="w-20 h-20 mb-8 relative z-10 mx-auto md:mx-0" />
-                <h3 className="text-3xl font-black tracking-tighter uppercase leading-none mb-4 relative z-10 text-center md:text-left">Academic<br/><span className="text-femac-yellow">Calendar</span></h3>
-                <div className="mt-12 space-y-4 relative z-10">
-                  <div className="bg-white/10 p-5 rounded-2xl border border-white/10 text-center">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-femac-400 mb-1">Current Cycle</p>
-                    <p className="text-xl font-black text-femac-yellow leading-none uppercase">2026/2027</p>
-                  </div>
-                  <button onClick={() => setShowCalendarModal(false)} className="flex items-center space-x-2 text-white/60 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/30 px-4 py-2 rounded-full w-full justify-center md:justify-start mt-8"><Home size={14} /> <span>Return to Home</span></button>
-                </div>
-            </div>
-            <div className="md:w-3/4 p-10 md:p-14 flex flex-col bg-white overflow-y-auto max-h-[90vh] custom-scrollbar">
-                <div className="flex items-center justify-between mb-12 border-b border-slate-100 pb-6">
-                    <div>
-                        <h4 className="text-4xl font-black text-femac-900 tracking-tighter uppercase leading-none">Master Schedule</h4>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Key Dates & Terminology Nodes</p>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl flex items-center space-x-3 text-femac-900">
-                        <Timer size={24} className="text-femac-yellow" />
-                        <span className="text-xs font-black uppercase tracking-widest">Live Registry Sync</span>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 gap-12">
-                    <div className="space-y-6">
-                        <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                            <Star size={20} className="text-femac-900" />
-                            <h5 className="font-black uppercase tracking-widest text-lg">Term 1: Foundations</h5>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Opening Date</p><p className="font-black text-femac-900 uppercase">January 12, 2026</p></div>
-                                <Calendar size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Mid-Term Break</p><p className="font-black text-femac-900 uppercase">Feb 23 — Feb 27</p></div>
-                                <Timer size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all sm:col-span-2">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Closing & Vacation</p><p className="font-black text-femac-900 uppercase">April 10, 2026</p></div>
-                                <Info size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                            <Zap size={20} className="text-femac-900" />
-                            <h5 className="font-black uppercase tracking-widest text-lg">Term 2: Core Growth</h5>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Opening Date</p><p className="font-black text-femac-900 uppercase">May 11, 2026</p></div>
-                                <Calendar size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Mid-Term Break</p><p className="font-black text-femac-900 uppercase">June 22 — June 26</p></div>
-                                <Timer size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all sm:col-span-2">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Closing & Vacation</p><p className="font-black text-femac-900 uppercase">August 14, 2026</p></div>
-                                <Info size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="space-y-6">
-                        <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                            <Trophy size={20} className="text-femac-900" />
-                            <h5 className="font-black uppercase tracking-widest text-lg">Term 3: Excellence</h5>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Opening Date</p><p className="font-black text-femac-900 uppercase">Sept 14, 2026</p></div>
-                                <Calendar size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Mid-Term Break</p><p className="font-black text-femac-900 uppercase">Oct 19 — Oct 23</p></div>
-                                <Timer size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                            <div className="p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex items-center justify-between group hover:border-femac-yellow transition-all sm:col-span-2">
-                                <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Closing & Vacation</p><p className="font-black text-femac-900 uppercase">Dec 11, 2026</p></div>
-                                <Info size={20} className="text-slate-200 group-hover:text-femac-yellow" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-16 p-8 bg-femac-900 text-white rounded-[2rem] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center space-x-4">
-                        <div className="p-3 bg-white/10 rounded-xl"><Map size={24} className="text-femac-yellow" /></div>
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-widest">Public Holidays Note</p>
-                            <p className="text-[9px] font-bold text-femac-300 uppercase tracking-widest mt-1 opacity-70">The Academy remains closed on all Zambian Gazetted Holidays.</p>
-                        </div>
-                    </div>
-                    <button onClick={() => window.print()} className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center transition-all border border-white/10">
-                        <Download size={14} className="mr-2 text-femac-yellow" /> Export PDF Schedule
-                    </button>
-                </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showAdmissionModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden relative border border-white/20 min-h-[700px]">
-            <button onClick={closeAdmissionRegistry} className="absolute top-8 right-8 text-slate-400 hover:text-femac-900 transition-colors z-[110]"><X size={32} /></button>
-            <div className="flex flex-col md:flex-row h-full min-h-[700px]">
-              <div className="md:w-1/4 bg-femac-900 p-10 text-white flex flex-col justify-center relative overflow-hidden shrink-0">
-                <div className="absolute -top-10 -left-10 w-40 h-40 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
-                <img src={LOGO_URL} alt="Logo" className="w-20 h-20 mb-8 relative z-10 mx-auto md:mx-0" />
-                <h3 className="text-3xl font-black tracking-tighter uppercase leading-none mb-4 relative z-10 text-center md:text-left">Admission<br/><span className="text-femac-yellow">Registry</span></h3>
-                <div className="mt-12 space-y-4 relative z-10">
-                  {(activeAdmissionTab || isFillingForm) && (<button onClick={() => { if (isFillingForm) setIsFillingForm(false); else setActiveAdmissionTab(null); setTrackedApplication(null); setTrackerSearchTerm(''); }} className="flex items-center space-x-2 text-femac-yellow text-[10px] font-black uppercase tracking-widest hover:translate-x-[-4px] transition-transform border border-femac-yellow/30 px-4 py-2 rounded-full w-full justify-center md:justify-start"><ArrowLeft size={14} /> <span>Back to Menu</span></button>)}
-                  <button onClick={closeAdmissionRegistry} className="flex items-center space-x-2 text-white/60 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/30 px-4 py-2 rounded-full w-full justify-center md:justify-start"><Home size={14} /> <span>Back to Home</span></button>
-                </div>
-              </div>
-              <div className="md:w-3/4 p-10 md:p-14 flex flex-col bg-white overflow-y-auto max-h-[90vh] custom-scrollbar">
-                {!activeAdmissionTab && !isFillingForm ? (
-                  <div className="flex flex-col justify-center h-full">
-                    <h4 className="text-2xl font-black text-slate-800 tracking-tight mb-8 uppercase border-b border-slate-100 pb-4">Required Action Steps</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <button onClick={() => setActiveAdmissionTab('fees')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
-                        <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><DollarSign className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
-                        <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">SCHOOL FEES</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Financial breakdown per level</span></div>
-                      </button>
-                      <button onClick={() => setActiveAdmissionTab('policy')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
-                        <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><ShieldAlert className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
-                        <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">PAYMENT POLICY</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Institutional financial rules</span></div>
-                      </button>
-                      <button onClick={() => setActiveAdmissionTab('form')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
-                        <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><FileEdit className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
-                        <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">ENROLLMENT FORM</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Digital application portal</span></div>
-                      </button>
-                      <button onClick={() => setActiveAdmissionTab('tracker')} className="flex items-center space-x-6 p-6 bg-femac-900 text-white rounded-[2rem] hover:bg-femac-800 transition-all group text-left shadow-2xl">
-                        <div className="w-16 h-16 bg-femac-yellow rounded-2xl flex items-center justify-center shadow-lg"><SearchCode className="text-femac-900" size={28} /></div>
-                        <div><span className="block text-xl font-black text-femac-yellow uppercase tracking-tight">TRACK APPLICATION</span><span className="text-xs text-femac-300 font-bold uppercase tracking-widest">Live Enrollment Status</span></div>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="animate-in slide-in-from-right duration-500">
-                    {activeAdmissionTab === 'tracker' && (
-                        <div className="space-y-10">
-                            <div>
-                                <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Application Tracker</h4>
-                                <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mb-8">Official Enrollment Retrieval</p>
-                            </div>
-                            <form onSubmit={handleTrackApplication} className="space-y-6">
-                               <div className="relative">
-                                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-                                  <input required type="text" value={trackerSearchTerm} onChange={(e) => setTrackerSearchTerm(e.target.value)} placeholder="Enter Candidate Registry ID (e.g. S-2026-001)" className="w-full pl-16 pr-6 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-black text-femac-900 uppercase text-lg focus:border-femac-yellow transition-all" />
-                               </div>
-                               <button type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest hover:bg-femac-800 transition-all flex items-center justify-center shadow-xl">Check Registry Status</button>
-                            </form>
-                            {trackedApplication && trackedApplication !== 'NOT_FOUND' && (
-                                <div className="bg-slate-50 p-10 rounded-[3rem] border-2 border-femac-yellow/20 animate-in zoom-in duration-300">
-                                   <div className="flex items-center space-x-6 mb-8">
-                                      <div className="w-20 h-20 bg-femac-900 rounded-[1.5rem] flex items-center justify-center text-femac-yellow text-3xl font-black uppercase shadow-xl">FILE</div>
-                                      <div>
-                                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Academic Identifier</p>
-                                         <h5 className="text-3xl font-black text-femac-900 uppercase tracking-tighter leading-none">{trackedApplication.id}</h5>
-                                         <p className="text-xs font-bold text-slate-500 mt-2 uppercase tracking-widest">{trackedApplication.firstName} {trackedApplication.lastName} • Grade {trackedApplication.grade}</p>
-                                      </div>
-                                   </div>
-                                   <div className="grid grid-cols-1 gap-6">
-                                      {trackedApplication.applicationStatus === ApplicationStatus.PENDING && (
-                                        <div className="bg-white p-8 rounded-3xl border border-amber-100 flex items-start space-x-4 shadow-sm">
-                                           <div className="shrink-0 bg-amber-50 p-4 rounded-2xl"><Clock className="text-amber-600 animate-spin-slow" size={32} /></div>
-                                           <div>
-                                              <p className="text-lg font-black text-amber-700 uppercase tracking-tight mb-1">File Under Review</p>
-                                              <p className="text-xs text-slate-500 font-medium leading-relaxed">Your academic file is currently being processed by the Executive Operations Registry. This process typically takes 3-5 working days.</p>
-                                           </div>
-                                        </div>
-                                      )}
-                                      {trackedApplication.applicationStatus === ApplicationStatus.ACCEPTED && (
-                                        <div className="bg-white p-8 rounded-3xl border border-green-100 flex items-start space-x-4 shadow-sm">
-                                           <div className="shrink-0 bg-green-50 p-4 rounded-2xl"><CheckCircle className="text-green-600" size={32} /></div>
-                                           <div>
-                                              <p className="text-lg font-black text-green-700 uppercase tracking-tight mb-1">Application Accepted</p>
-                                              <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6">Congratulations! Candidate <span className="text-femac-900 font-black">{trackedApplication.firstName}</span> has been formally enrolled at FEMAC Academy.</p>
-                                              <button className="bg-femac-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center hover:bg-femac-800 transition-all shadow-lg"><Download size={14} className="mr-2 text-femac-yellow" /> Download Acceptance Letter</button>
-                                           </div>
-                                        </div>
-                                      )}
-                                      {trackedApplication.applicationStatus === ApplicationStatus.INTERVIEW && (
-                                        <div className="bg-white p-8 rounded-3xl border border-blue-100 flex items-start space-x-4 shadow-sm">
-                                           <div className="shrink-0 bg-blue-50 p-4 rounded-2xl"><CalendarClock className="text-blue-600" size={32} /></div>
-                                           <div>
-                                              <p className="text-lg font-black text-blue-700 uppercase tracking-tight mb-1">Interview Scheduled</p>
-                                              <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4 uppercase tracking-wide">The candidate is subjected to an entrance evaluation. Please report to the school physically with the candidate.</p>
-                                              <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                                                 <p className="text-[10px] font-black uppercase text-blue-400 mb-1">Reporting Date</p>
-                                                 <p className="font-black text-blue-900 text-xl uppercase tracking-tighter">{trackedApplication.interviewDate || 'To be specified'}</p>
-                                              </div>
-                                           </div>
-                                        </div>
-                                      )}
-                                      {trackedApplication.applicationStatus === ApplicationStatus.DECLINED && (
-                                        <div className="bg-white p-8 rounded-3xl border border-red-100 flex items-start space-x-4 shadow-sm">
-                                           <div className="shrink-0 bg-red-50 p-4 rounded-2xl"><XCircle className="text-red-600" size={32} /></div>
-                                           <div>
-                                              <p className="text-lg font-black text-red-700 uppercase tracking-tight mb-1">Registry Update</p>
-                                              <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6">We regret to inform you that we are unable to offer enrollment based on the current file review.</p>
-                                              <button onClick={() => { setIsFillingForm(false); setActiveAdmissionTab('form'); setTrackedApplication(null); }} className="bg-femac-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center hover:bg-femac-800 transition-all shadow-lg"><RotateCw size={14} className="mr-2 text-femac-yellow" /> Try Applying Again</button>
-                                           </div>
-                                        </div>
-                                      )}
-                                   </div>
-                                </div>
-                            )}
-                            {trackedApplication === 'NOT_FOUND' && (
-                                <div className="bg-red-50 p-10 rounded-[3rem] border border-red-100 text-center animate-in shake duration-300">
-                                   <AlertCircle className="mx-auto text-red-500 mb-4" size={48} />
-                                   <h5 className="text-xl font-black text-red-700 uppercase tracking-tight mb-2">Invalid Registry Key</h5>
-                                   <p className="text-xs text-red-600 font-medium">No application found matching that Identifier.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    {activeAdmissionTab === 'fees' && (
-                        <div>
-                            <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Tuition & Fees</h4>
-                            <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mb-8">Academic Session 2026/2027</p>
-                            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-                                <table className="w-full">
-                                    <tbody>
-                                        <tr className="border-b border-slate-200/50"><td className="py-3 font-bold text-slate-700">Primary (G1 - G7)</td><td className="py-3 text-right font-black text-femac-900">K 3,500.00</td></tr>
-                                        <tr className="border-b border-slate-200/50"><td className="py-3 font-bold text-slate-700">Junior Secondary (G8 - G9)</td><td className="py-3 text-right font-black text-femac-900">K 4,800.00</td></tr>
-                                        <tr><td className="py-3 font-bold text-slate-700">Senior Secondary (G10 - G12)</td><td className="py-3 text-right font-black text-femac-900">K 6,200.00</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                    {activeAdmissionTab === 'policy' && (
-                        <div>
-                            <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Payment Policy</h4>
-                            <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mb-8">Institutional Financial Mandate</p>
-                            <div className="space-y-6">
-                              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
-                                <h5 className="text-lg font-black text-femac-900 uppercase tracking-tight mb-4 flex items-center">
-                                  <ShieldAlert className="mr-3 text-femac-yellow" /> Verification Mandate
-                                </h5>
-                                <p className="text-xs text-slate-600 leading-relaxed font-medium uppercase tracking-wide">After payment, parents must send a notification to Executive Accounts for instant result unlocking and registry propagation.</p>
-                              </div>
-                              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
-                                <h5 className="text-lg font-black text-femac-900 uppercase tracking-tight mb-4 flex items-center">
-                                  <Lock className="mr-3 text-femac-yellow" /> Access Authorisation
-                                </h5>
-                                <p className="text-xs text-slate-600 leading-relaxed font-medium uppercase tracking-wide">Results and academic files only unlock after the Executive Registry confirms payment hashes.</p>
-                              </div>
-                            </div>
-                        </div>
-                    )}
-                    {activeAdmissionTab === 'form' && !isFillingForm && (
-                        <div>
-                            <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Enrollment Form</h4>
-                            <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mb-10">Document Request Portal</p>
-                            <div className="bg-slate-50 rounded-[2rem] p-12 border-2 border-dashed border-slate-200 flex flex-col items-center text-center">
-                                <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-lg mb-6"><UserPlus size={44} className="text-femac-900" /></div>
-                                <h5 className="text-3xl font-black text-femac-900 uppercase tracking-tight mb-4">New Candidate Form</h5>
-                                <p className="text-sm text-slate-500 font-medium mb-10 max-w-sm">Ensure you have digital results and birth certificates ready.</p>
-                                <button onClick={() => setIsFillingForm(true)} className="w-full bg-femac-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-femac-800 transition-all flex items-center justify-center space-x-3 transform active:scale-95 shadow-xl"><span>Start Application</span><ChevronRight size={20} /></button>
-                            </div>
-                        </div>
-                    )}
-                    {isFillingForm && (
-                      <div className="pb-10">
-                        {formSubmitted ? (
-                          <div className="flex flex-col items-center justify-center py-20 text-center animate-in zoom-in duration-500">
-                             <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-8"><CheckCircle2 size={56} /></div>
-                             <h4 className="text-4xl font-black text-femac-900 uppercase tracking-tight mb-4">Submission Received!</h4>
-                             <p className="text-slate-500 font-medium max-w-md mx-auto mb-10">Your Registry Academic ID is <span className="text-femac-900 font-black text-2xl block mt-2 border-2 border-dashed border-femac-yellow p-4 rounded-xl">{lastSubmissionId}</span> Use this ID to track your application status.</p>
-                             <button onClick={() => { setFormSubmitted(false); setActiveAdmissionTab('tracker'); setTrackerSearchTerm(lastSubmissionId || ''); }} className="px-10 py-4 bg-femac-900 text-white rounded-xl font-black uppercase tracking-widest shadow-lg hover:bg-femac-800 transition-all">Track Status Now</button>
-                          </div>
-                        ) : (
-                          <form onSubmit={handleFormSubmit} className="space-y-16">
-                              {/* CANDIDATE SECTION */}
-                              <div className="space-y-8">
-                                <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                                  <GraduationCap size={24} className="text-femac-900" />
-                                  <h5 className="font-black uppercase tracking-widest text-lg">Academic Identity & Profile</h5>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Full First Name</label>
-                                    <input required type="text" value={formFirstName} onChange={(e) => setFormFirstName(e.target.value)} placeholder="e.g., Chipo" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Surname</label>
-                                    <input required type="text" value={formLastName} onChange={(e) => setFormLastName(e.target.value)} placeholder="e.g., Mulenga" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Gender</label>
-                                    <select required value={formGender} onChange={(e) => setFormGender(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all appearance-none">
-                                      <option value="">Select Gender...</option>
-                                      <option value="MALE">MALE</option>
-                                      <option value="FEMALE">FEMALE</option>
-                                    </select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Date of Birth</label>
-                                    <input required type="date" value={formDob} onChange={(e) => setFormDob(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Grade Applied For</label>
-                                    <select required value={formGrade} onChange={(e) => setFormGrade(e.target.value)} className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all appearance-none">
-                                      <option value="">Select Level...</option>
-                                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
-                                        <option key={g} value={g}>Grade {g}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Previous School Attended</label>
-                                    <input type="text" value={formPrevSchool} onChange={(e) => setFormPrevSchool(e.target.value)} placeholder="School Name & Town" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* GUARDIAN SECTION */}
-                              <div className="space-y-8">
-                                <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                                  <ShieldCheck size={24} className="text-femac-900" />
-                                  <h5 className="font-black uppercase tracking-widest text-lg">Guardian / Parent Registry</h5>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Primary Guardian Name</label>
-                                    <div className="relative">
-                                      <UserIcon size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input required type="text" value={formGuardianName} onChange={(e) => setFormGuardianName(e.target.value)} placeholder="Full Name" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">NRC / Identity Number</label>
-                                    <div className="relative">
-                                      <IdCard size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input required type="text" value={formParentNrc} onChange={(e) => setFormParentNrc(e.target.value)} placeholder="xxxxxx/xx/x" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Relationship to Pupil</label>
-                                    <input required type="text" value={formRelationship} onChange={(e) => setFormRelationship(e.target.value)} placeholder="e.g., Father" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Occupation</label>
-                                    <div className="relative">
-                                      <Briefcase size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input type="text" value={formOccupation} onChange={(e) => setFormOccupation(e.target.value)} placeholder="Industry or Profession" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Active Phone Line</label>
-                                    <div className="relative">
-                                      <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input required type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="09xx xxx xxx" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Email Correspondence</label>
-                                    <div className="relative">
-                                      <Mail size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input required type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="name@domain.com" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* CONTACT & EMERGENCY SECTION */}
-                              <div className="space-y-8">
-                                <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
-                                  <MapPin size={24} className="text-femac-900" />
-                                  <h5 className="font-black uppercase tracking-widest text-lg">Contact & Emergency Node</h5>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                  <div className="md:col-span-2 space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Residential Address</label>
-                                    <div className="relative">
-                                      <MapPin size={18} className="absolute left-5 top-6 text-slate-300" />
-                                      <textarea required rows={3} value={formAddress} onChange={(e) => setFormAddress(e.target.value)} placeholder="Street name, Area, City" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all resize-none"></textarea>
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Secondary Emergency Contact</label>
-                                    <input type="text" value={formEmergencyName} onChange={(e) => setFormEmergencyName(e.target.value)} placeholder="Full Name" className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Emergency Phone</label>
-                                    <div className="relative">
-                                      <Phone size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                                      <input type="tel" value={formEmergencyPhone} onChange={(e) => setFormEmergencyPhone(e.target.value)} placeholder="09xx xxx xxx" className="w-full pl-14 pr-5 py-5 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all" />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="pt-10">
-                                <div className="flex items-start space-x-4 p-6 bg-slate-900 text-white rounded-[2rem] shadow-2xl mb-12">
-                                  <div className="shrink-0 bg-femac-yellow p-3 rounded-xl"><AlertCircle size={24} className="text-slate-900" /></div>
-                                  <div>
-                                    <p className="text-sm font-black uppercase tracking-widest text-femac-yellow mb-2">Legal Declaration</p>
-                                    <p className="text-[10px] font-medium leading-relaxed opacity-70 uppercase tracking-wider">I hereby declare that the information provided in this registry form is accurate and complete. Falsification of records results in immediate registry expulsion.</p>
-                                  </div>
-                                </div>
-                                <button type="submit" className="w-full bg-femac-900 text-white py-8 rounded-[2rem] font-black uppercase tracking-[0.3em] text-xl shadow-2xl hover:bg-white hover:text-femac-900 border-4 border-transparent hover:border-femac-900 transition-all transform active:scale-95 flex items-center justify-center space-x-4">
-                                  <span>Finalize Application</span>
-                                  <ChevronRight size={28} className="text-femac-yellow" />
-                                </button>
-                              </div>
-                          </form>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <footer className="bg-femac-900 border-t border-white/5 py-16 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="flex flex-col items-start md:w-1/3">
-            <div className="flex items-center space-x-4 mb-6">
-              <img src={LOGO_URL} alt="Logo" className="h-12 w-12" />
-              <h4 className="text-femac-yellow text-3xl font-black tracking-tighter uppercase">FEMAC ACADEMY</h4>
-            </div>
-            <p className="text-femac-400 text-sm font-black uppercase tracking-widest mb-1">plot 442 katuba 17miles, great north road, central, zambia</p>
-            <p className="text-femac-500 text-[10px] font-black uppercase tracking-widest mt-8">Integrated Management System (FAIMS)</p>
-          </div>
-          <div className="md:w-1/3">
-            <h5 className="text-white text-xs font-black uppercase tracking-[0.3em] mb-8 flex items-center"><span className="w-8 h-[2px] bg-femac-yellow mr-4"></span> Contact Registry</h5>
-            <div className="space-y-4">
-               <a href="mailto:malamachikuni@gmail.com" className="flex items-center space-x-4 group"><Mail size={18} className="text-femac-yellow" /><span className="text-femac-200 text-sm font-bold group-hover:text-white transition-colors">malamachikuni@gmail.com</span></a>
-               <a href="tel:0977927447" className="flex items-center space-x-4 group"><Phone size={18} className="text-femac-yellow" /><span className="text-femac-200 text-sm font-bold group-hover:text-white transition-colors">0977 927 447</span></a>
+            <div className="flex items-center space-x-4 mb-6"><img src={LOGO_URL} alt="Logo" className="h-16 w-16" /><h4 className="text-femac-yellow text-3xl font-black tracking-tighter uppercase">FEMAC ACADEMY</h4></div>
+            <p className="text-femac-400 text-sm font-black uppercase tracking-widest mb-1">{settings?.address || 'PLOT 442 KATUBA 17MILES, GREAT NORTH ROAD, CENTRAL, ZAMBIA'}</p>
+            <div className="flex items-center space-x-6 mt-4">
+               <div className="flex items-center space-x-2 text-femac-300 text-xs font-bold uppercase tracking-widest"><Phone size={14} className="text-femac-yellow"/><span>{settings?.phone || '+260 972 705 347'}</span></div>
+               <div className="flex items-center space-x-2 text-femac-300 text-xs font-bold uppercase tracking-widest"><Mail size={14} className="text-femac-yellow"/><span>{settings?.email || 'admissions@femac.edu.zm'}</span></div>
             </div>
           </div>
         </div>

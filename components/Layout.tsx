@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, SchoolSettings, ApplicationStatus } from '../types';
+import { MockDB } from '../services/mockDb';
 import { 
   LayoutDashboard, BookOpen, GraduationCap, Users, DollarSign, Menu, X, LogOut, 
   CheckCircle, TrendingUp, Briefcase, Mail, Phone, MessageCircle, Facebook, User as UserIcon,
-  Maximize, Minimize, Megaphone
+  Maximize, Minimize, Megaphone, Settings, Globe, FileSearch
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -19,15 +20,41 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, children, activePage, onNavigate }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png";
+  const [settings, setSettings] = useState<SchoolSettings | null>(null);
+  const [pendingAdmissionsCount, setPendingAdmissionsCount] = useState(0);
+  const LOGO_URL = "https://i.ibb.co/LzfNqjW0/femac-logo.png";
 
   useEffect(() => {
+    const loadSettings = async () => {
+      const data = await MockDB.getSchoolSettings();
+      setSettings(data);
+    };
+    loadSettings();
+
+    const checkPending = async () => {
+      if (user.role === UserRole.EXECUTIVE_ACCOUNTS) {
+        try {
+          const students = await MockDB.getStudents();
+          const pending = students.filter(s => s.applicationStatus === ApplicationStatus.PENDING).length;
+          setPendingAdmissionsCount(pending);
+        } catch (err) {
+          console.error("Layout Sync Error:", err);
+        }
+      }
+    };
+    
+    checkPending();
+    const interval = setInterval(checkPending, 15000); // Poll every 15s for "channel" feel
+
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      clearInterval(interval);
+    };
+  }, [user.role]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -66,10 +93,12 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
       case UserRole.EXECUTIVE_ACCOUNTS:
         return [
           { id: 'financials', label: 'Financials', icon: DollarSign },
+          { id: 'admissions', label: 'Admissions', icon: FileSearch, badge: pendingAdmissionsCount },
           { id: 'messages', label: 'Executive Chat', icon: MessageCircle },
           { id: 'announcements', label: 'Announcements', icon: Megaphone },
           { id: 'staff', label: 'Staffing', icon: Briefcase },
           { id: 'growth', label: 'Growth', icon: TrendingUp },
+          { id: 'settings', label: 'Settings', icon: Settings },
         ];
       default:
         return [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }];
@@ -87,7 +116,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <div className="md:hidden bg-femac-900 text-white p-4 flex justify-between items-center shadow-md border-b border-femac-yellow/30">
         <button onClick={onGoHome} className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-          <img src={LOGO_URL} alt="Logo" className="h-8 w-8 object-contain" />
+          <img src={LOGO_URL} alt="Logo" className="h-10 w-10 object-contain" />
           <span className="font-extrabold text-xl tracking-tighter text-femac-yellow uppercase">FEMAC ACADEMY</span>
         </button>
         <div className="flex items-center space-x-4">
@@ -107,7 +136,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
       `}>
         <div className="p-6 border-b border-femac-700 flex flex-col items-start">
           <button onClick={onGoHome} className="group flex flex-col items-start w-full text-left">
-            <img src={LOGO_URL} alt="FEMAC Crest" className="h-16 w-16 mb-4 object-contain filter drop-shadow-[0_0_8px_rgba(250,204,21,0.3)] group-hover:scale-105 transition-transform" />
+            <img src={LOGO_URL} alt="FEMAC Crest" className="h-20 w-20 mb-4 object-contain filter drop-shadow-[0_0_12px_rgba(250,204,21,0.4)] group-hover:scale-105 transition-transform" />
             <h1 className="text-3xl font-black tracking-tighter text-femac-yellow uppercase leading-tight group-hover:text-white transition-colors">
               FEMAC<br/>ACADEMY
             </h1>
@@ -116,23 +145,30 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => (
+          {navItems.map((item: any) => (
             <button
               key={item.id}
               onClick={() => {
                 onNavigate(item.id);
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all relative
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all relative
                 ${activePage === item.id 
                   ? 'bg-femac-800 text-white shadow-lg' 
                   : 'text-femac-200 hover:bg-femac-800 hover:text-white'}`}
             >
-              {activePage === item.id && (
-                <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-femac-yellow rounded-r-full"></div>
+              <div className="flex items-center space-x-3">
+                {activePage === item.id && (
+                  <div className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-femac-yellow rounded-r-full"></div>
+                )}
+                <item.icon size={20} className={activePage === item.id ? 'text-femac-yellow' : ''} />
+                <span className="font-medium text-sm tracking-wide">{item.label}</span>
+              </div>
+              {item.badge > 0 && (
+                <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-bounce shadow-[0_0_10px_rgba(220,38,38,0.5)]">
+                  {item.badge}
+                </span>
               )}
-              <item.icon size={20} className={activePage === item.id ? 'text-femac-yellow' : ''} />
-              <span className="font-medium text-sm tracking-wide">{item.label}</span>
             </button>
           ))}
         </nav>
@@ -158,7 +194,6 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
       </aside>
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen relative flex flex-col">
-        {/* Fullscreen Toggle Utility - Desktop */}
         <div className="hidden md:flex absolute top-8 right-8 z-30">
           <button 
             onClick={toggleFullscreen} 
@@ -173,14 +208,25 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
           </button>
         </div>
 
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-[0.015] pointer-events-none z-0">
+        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-[0.02] pointer-events-none z-0">
           <img src={LOGO_URL} alt="" className="w-[500px] h-[500px] object-contain" />
         </div>
         <div className="max-w-7xl mx-auto relative z-10 flex-1 w-full">
            {children}
         </div>
         <footer className="mt-20 pt-8 border-t border-slate-200 relative z-10 max-w-7xl mx-auto w-full pb-8 text-center md:text-left">
-           <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300">FAIMS System Support • Zambia</p>
+           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center space-x-3">
+                <img src={LOGO_URL} alt="Footer Logo" className="h-6 w-6 object-contain opacity-50" />
+                <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-300">FAIMS System Support • Zambia</p>
+              </div>
+              {settings && (
+                <div className="flex flex-wrap justify-center md:justify-end gap-6">
+                  <div className="flex items-center space-x-2 text-[8px] font-black uppercase text-slate-400 tracking-widest"><Phone size={10} className="text-femac-yellow"/><span>{settings.phone}</span></div>
+                  <div className="flex items-center space-x-2 text-[8px] font-black uppercase text-slate-400 tracking-widest"><Mail size={10} className="text-femac-yellow"/><span>{settings.email}</span></div>
+                </div>
+              )}
+           </div>
         </footer>
       </main>
 

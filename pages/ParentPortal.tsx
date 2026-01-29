@@ -23,8 +23,15 @@ const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ p
   const [session, setSession] = useState<ChatSession | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Fix: Handling asynchronous session fetch in useEffect
   useEffect(() => {
-    setSession(MockDB.getChatSessionByParent(parentId, parentName));
+    const loadSession = async () => {
+      const sess = await MockDB.getChatSessionByParent(parentId, parentName);
+      setSession(sess);
+    };
+    if (isOpen) {
+      loadSession();
+    }
   }, [parentId, parentName, isOpen]);
 
   useEffect(() => {
@@ -39,8 +46,10 @@ const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ p
 
     const userMsg = input.trim();
     setInput('');
-    MockDB.sendMessage(session.id, parentId, UserRole.PARENT, userMsg);
-    setSession({...MockDB.getChatSessionByParent(parentId, parentName)});
+    // Fix: Await sendMessage and reload session for immediate feedback
+    await MockDB.sendMessage(session.id, parentId, UserRole.PARENT, userMsg);
+    const updatedSession = await MockDB.getChatSessionByParent(parentId, parentName);
+    setSession(updatedSession);
 
     if (session.status === 'AI_ONLY') {
       setIsTyping(true);
@@ -61,8 +70,9 @@ const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ p
           },
         });
         
-        MockDB.sendMessage(session.id, 'AI-001', UserRole.EXECUTIVE_ACCOUNTS, response.text || 'I am sorry, I am having trouble connecting.', true);
-        setSession({...MockDB.getChatSessionByParent(parentId, parentName)});
+        await MockDB.sendMessage(session.id, 'AI-001', UserRole.EXECUTIVE_ACCOUNTS, response.text || 'I am sorry, I am having trouble connecting.', true);
+        const postAiSession = await MockDB.getChatSessionByParent(parentId, parentName);
+        setSession(postAiSession);
       } catch (err) {
         console.error(err);
       } finally {
@@ -71,11 +81,12 @@ const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ p
     }
   };
 
-  const handleEscalate = () => {
+  const handleEscalate = async () => {
     if (session) {
-      MockDB.requestExecutive(session.id);
-      MockDB.sendMessage(session.id, 'SYSTEM', UserRole.EXECUTIVE_ACCOUNTS, "A request has been sent to the Executive Node. Please wait for an administrator to join.", true);
-      setSession({...MockDB.getChatSessionByParent(parentId, parentName)});
+      await MockDB.requestExecutive(session.id);
+      await MockDB.sendMessage(session.id, 'SYSTEM', UserRole.EXECUTIVE_ACCOUNTS, "A request has been sent to the Executive Node. Please wait for an administrator to join.", true);
+      const escalatedSession = await MockDB.getChatSessionByParent(parentId, parentName);
+      setSession(escalatedSession);
     }
   };
 
@@ -165,21 +176,32 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [notificationSent, setNotificationSent] = useState(false);
   
+  // Fix: Move async derived values to state
+  const [activeStudent, setActiveStudent] = useState<Student>(parentStudents[0] || MOCK_STUDENTS[0]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+
   // Custom Payment State
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentDescription, setPaymentDescription] = useState<string>('');
   
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Re-fetch the student object from DB to get the latest resultsUnlocked status
-  const studentInRegistry = MockDB.getStudentById(activeStudentId);
-  const activeStudent = studentInRegistry || MOCK_STUDENTS[0];
-
-  const refreshRegistryData = () => {
-    const currentFees = MockDB.getFeesByStudent(activeStudentId);
+  // Fix: Unified asynchronous data refresh method
+  const refreshRegistryData = async () => {
+    const [currentFees, studentGrades, studentData, totalStudents] = await Promise.all([
+      MockDB.getFeesByStudent(activeStudentId),
+      MockDB.getGradesByStudent(activeStudentId),
+      MockDB.getStudentById(activeStudentId),
+      MockDB.getStudents()
+    ]);
+    
     setFees(currentFees);
-    const allGrades = MockDB.getGradesByStudent(activeStudentId);
-    setGrades(allGrades.filter(g => g.status === GradeStatus.PUBLISHED));
+    // StudentGrades from MockDB.getGradesByStudent is already filtered by status 'PUBLISHED'
+    setGrades(studentGrades as GradeRecord[]);
+    if (studentData) {
+      setActiveStudent(studentData);
+    }
+    setAllStudents(totalStudents);
   };
 
   useEffect(() => {
@@ -214,34 +236,35 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
     setNotificationSent(false);
   };
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     if (!paymentAmount || parseFloat(paymentAmount) <= 0) return;
     setIsProcessing(true);
-    setTimeout(() => {
-        MockDB.makePayment(activeStudentId, parseFloat(paymentAmount), paymentDescription);
-        refreshRegistryData();
-        setIsProcessing(false);
-        setPaymentStep('success');
-    }, 2000);
+    // Fix: Using async/await for mock database updates
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await MockDB.makePayment(activeStudentId, parseFloat(paymentAmount), paymentDescription);
+    await refreshRegistryData();
+    setIsProcessing(false);
+    setPaymentStep('success');
   };
 
-  const handleSendNotification = () => {
+  const handleSendNotification = async () => {
     setIsProcessing(true);
-    setTimeout(() => {
-        MockDB.sendPaymentNotification({
-            studentId: activeStudentId,
-            amount: parseFloat(paymentAmount),
-            method: selectedMethod === 'momo' ? 'MOMO' : 'BANK',
-            details: `${paymentDescription} - ${selectedMethod === 'momo' ? 'Airtel Merchant Ref' : 'Bank Transfer'}`
-        });
-        setIsProcessing(false);
-        setNotificationSent(true);
-    }, 1500);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Fix: MockDB now correctly implements sendPaymentNotification
+    await MockDB.sendPaymentNotification({
+        studentId: activeStudentId,
+        amount: parseFloat(paymentAmount),
+        method: selectedMethod === 'momo' ? 'MOMO' : 'BANK',
+        details: `${paymentDescription} - ${selectedMethod === 'momo' ? 'Airtel Merchant Ref' : 'Bank Transfer'}`
+    });
+    setIsProcessing(false);
+    setNotificationSent(true);
   };
 
+  // Fix: Using allStudents state to prevent Promise filter errors
   const searchResults = (searchTerm.trim() === '' || searchGrade === '') 
     ? [] 
-    : MockDB.getStudents().filter(s => 
+    : allStudents.filter(s => 
         s.grade === parseInt(searchGrade) && 
         (s.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
          `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -445,7 +468,7 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
                       </ResponsiveContainer>
                   </div>
                   <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100"><p className="text-[10px] font-black uppercase text-slate-400 mb-2">Mean Performance</p><p className="text-4xl font-black text-femac-900">{Math.round(grades.reduce((a,b) => a + b.score, 0) / grades.length)}%</p></div>
+                    <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100"><p className="text-[10px] font-black uppercase text-slate-400 mb-2">Mean Performance</p><p className="text-4xl font-black text-femac-900">{grades.length > 0 ? Math.round(grades.reduce((a,b) => a + b.score, 0) / grades.length) : 0}%</p></div>
                     <div className="bg-femac-900 p-8 rounded-[2.5rem] text-white shadow-2xl"><p className="text-[10px] font-black uppercase text-femac-400 mb-2">Access Identity</p><p className="text-lg font-black text-femac-yellow uppercase">Node Unlocked</p></div>
                   </div>
                </div>

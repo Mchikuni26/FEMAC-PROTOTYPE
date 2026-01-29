@@ -1,196 +1,214 @@
 
+import { supabase } from '../supabase';
 import { 
   GradeRecord, GradeStatus, Assignment, FeeTransaction, 
   Student, ApplicationStatus, PaymentNotification, AssessmentType,
   StudentReport, SubjectPerformance, StaffMember, FinancialYearSummary, InstitutionalExpense,
-  ChatSession, ChatMessage, UserRole, Announcement 
+  ChatSession, ChatMessage, UserRole, Announcement, SchoolSettings 
 } from '../types';
-import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES, MOCK_STUDENTS, MOCK_STAFF } from '../constants';
-
-// Persist state in memory for the session
-let gradesStore = [...MOCK_GRADES];
-let assignmentsStore = [...MOCK_ASSIGNMENTS];
-let feesStore = [...MOCK_FEES];
-let studentsStore = [...MOCK_STUDENTS];
-let staffStore = [...MOCK_STAFF];
-let notificationsStore: PaymentNotification[] = [];
-let reportsStore: StudentReport[] = [];
-let chatSessionsStore: ChatSession[] = [];
-let announcementsStore: Announcement[] = [
-  {
-    id: 'ann-1',
-    title: 'Academic Year 2026 Enrollment',
-    content: 'We are pleased to announce that enrollment for the 2026 academic session is now officially open across all grade levels.',
-    date: '2026-01-01',
-    priority: 'NORMAL'
-  }
-];
-
-let historicalYearsStore: FinancialYearSummary[] = [
-  { year: 2023, totalRevenue: 850000, totalExpenses: 420000, grossProfit: 850000, netProfit: 430000, totalSalaries: 380000, operationalCosts: 40000, studentCount: 180 },
-  { year: 2024, totalRevenue: 1020000, totalExpenses: 510000, grossProfit: 1020000, netProfit: 510000, totalSalaries: 450000, operationalCosts: 60000, studentCount: 210 },
-  { year: 2025, totalRevenue: 1180000, totalExpenses: 590000, grossProfit: 1180000, netProfit: 590000, totalSalaries: 520000, operationalCosts: 70000, studentCount: 245 }
-];
-
-let institutionalExpenses: InstitutionalExpense[] = [
-  { id: 'exp-1', category: 'UTILITIES', amount: 4500, date: '2026-01-15', description: 'ZESCO Power Grid Settlement' },
-  { id: 'exp-2', category: 'MAINTENANCE', amount: 8200, date: '2026-02-05', description: 'Science Lab Structural Repair' },
-  { id: 'exp-3', category: 'RESOURCES', amount: 12500, date: '2026-02-18', description: 'New Grade 10 Textbooks Purchase' }
-];
 
 export const MockDB = {
   // Announcements
-  getAnnouncements: () => [...announcementsStore],
-  addAnnouncement: (announcement: Omit<Announcement, 'id' | 'date'>) => {
-    const newAnn: Announcement = {
-      ...announcement,
-      id: `ann-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0]
-    };
-    announcementsStore.unshift(newAnn);
-    return newAnn;
+  getAnnouncements: async (): Promise<Announcement[]> => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) return [];
+    return data || [];
   },
-  deleteAnnouncement: (id: string) => {
-    announcementsStore = announcementsStore.filter(a => a.id !== id);
+
+  addAnnouncement: async (announcement: Omit<Announcement, 'id' | 'date'>) => {
+    const { data, error } = await supabase
+      .from('announcements')
+      .insert([{
+        ...announcement,
+        date: new Date().toISOString().split('T')[0]
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deleteAnnouncement: async (id: string) => {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // School Settings
+  getSchoolSettings: async (): Promise<SchoolSettings> => {
+    const { data, error } = await supabase
+      .from('school_settings')
+      .select('*')
+      .maybeSingle();
+    
+    if (error || !data) {
+      return {
+        address: 'PLOT 442 KATUBA 17MILES, GREAT NORTH ROAD, CENTRAL, ZAMBIA',
+        phone: '+260 972 705 347',
+        email: 'admissions@femac.edu.zm'
+      };
+    }
+    return data;
+  },
+
+  updateSchoolSettings: async (settings: SchoolSettings) => {
+    const { error } = await supabase.from('school_settings').upsert([{ id: 1, ...settings }]);
+    if (error) throw error;
   },
 
   // Chat Logic
-  getChatSessions: () => [...chatSessionsStore],
+  getChatSessions: async (): Promise<ChatSession[]> => {
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .select('*, chat_messages(*)');
+    if (error) return [];
+    return data.map(s => ({
+      ...s,
+      messages: s.chat_messages || []
+    })).sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+  },
   
-  getChatSessionByParent: (parentId: string, parentName: string) => {
-    let session = chatSessionsStore.find(s => s.parentId === parentId && s.status !== 'CLOSED');
-    if (!session) {
-      session = {
-        id: `chat-${Date.now()}`,
-        parentId,
-        parentName,
-        status: 'AI_ONLY',
-        messages: [],
-        lastActivity: new Date().toISOString()
-      };
-      chatSessionsStore.push(session);
+  getChatSessionByParent: async (parentId: string, parentName: string): Promise<ChatSession> => {
+    const { data, error } = await supabase
+      .from('chat_sessions')
+      .select('*, chat_messages(*)')
+      .eq('parentId', parentId)
+      .neq('status', 'CLOSED')
+      .maybeSingle();
+
+    if (error || !data) {
+      const { data: newSession, error: createError } = await supabase
+        .from('chat_sessions')
+        .insert([{
+          parentId,
+          parentName,
+          status: 'AI_ONLY',
+          lastActivity: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      return { ...newSession, messages: [] };
     }
-    return session;
+    
+    return { ...data, messages: (data.chat_messages || []).sort((a:any, b:any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) };
   },
 
-  sendMessage: (sessionId: string, senderId: string, role: UserRole, text: string, isAi: boolean = false) => {
-    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
-    if (sessionIdx !== -1) {
-      const msg: ChatMessage = {
-        id: `msg-${Date.now()}`,
+  sendMessage: async (sessionId: string, senderId: string, role: UserRole, text: string, isAi: boolean = false) => {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert([{
+        sessionId,
         senderId,
         senderRole: role,
         text,
-        timestamp: new Date().toLocaleTimeString(),
+        timestamp: new Date().toISOString(),
         isAi
-      };
-      chatSessionsStore[sessionIdx].messages.push(msg);
-      chatSessionsStore[sessionIdx].lastActivity = new Date().toISOString();
-      return msg;
-    }
-    return null;
+      }])
+      .select()
+      .single();
+
+    await supabase
+      .from('chat_sessions')
+      .update({ lastActivity: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (error) throw error;
+    return data;
   },
 
-  requestExecutive: (sessionId: string) => {
-    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
-    if (sessionIdx !== -1) {
-      chatSessionsStore[sessionIdx].status = 'REQUESTED';
-    }
+  requestExecutive: async (sessionId: string) => {
+    await supabase.from('chat_sessions').update({ status: 'REQUESTED' }).eq('id', sessionId);
   },
 
-  acceptChatRequest: (sessionId: string) => {
-    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
-    if (sessionIdx !== -1) {
-      chatSessionsStore[sessionIdx].status = 'ACTIVE';
-    }
+  acceptChatRequest: async (sessionId: string) => {
+    await supabase.from('chat_sessions').update({ status: 'ACTIVE' }).eq('id', sessionId);
   },
 
-  closeChat: (sessionId: string) => {
-    const sessionIdx = chatSessionsStore.findIndex(s => s.id === sessionId);
-    if (sessionIdx !== -1) {
-      chatSessionsStore[sessionIdx].status = 'CLOSED';
-    }
+  closeChat: async (sessionId: string) => {
+    await supabase.from('chat_sessions').update({ status: 'CLOSED' }).eq('id', sessionId);
   },
 
-  // Growth & Financials
-  getGrowthMetrics: () => {
-    const currentYear = new Date().getFullYear();
-    const verifiedPayments = feesStore.filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + Math.abs(curr.amount), 0);
-    const activeStaff = staffStore.filter(s => s.contractStatus === 'ACTIVE');
+  // Financials & Growth
+  getGrowthMetrics: async () => {
+    const { data: fees } = await supabase.from('fees').select('*');
+    const { data: staff } = await supabase.from('staff').select('*');
+    const { data: expenses } = await supabase.from('expenses').select('*');
+    const { data: students } = await supabase.from('students').select('*');
+
+    const verifiedPayments = (fees || []).filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + Math.abs(curr.amount), 0);
+    const activeStaff = (staff || []).filter(s => s.contractStatus === 'ACTIVE');
     const monthlySalaries = activeStaff.reduce((acc, curr) => acc + curr.salary, 0);
-    const monthIndex = new Date().getMonth() + 1;
-    const yearSalaries = monthlySalaries * monthIndex;
-    const totalOps = institutionalExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+    const totalOps = (expenses || []).reduce((acc, curr) => acc + curr.amount, 0);
+    
+    const yearSalaries = monthlySalaries * 12; // Annualized for report
     const totalExpenses = yearSalaries + totalOps;
-    const grossProfit = verifiedPayments - totalOps;
-    const netProfit = grossProfit - yearSalaries;
+    const netProfit = verifiedPayments - totalExpenses;
 
     return {
       current: {
-        year: currentYear,
+        year: new Date().getFullYear(),
         totalRevenue: verifiedPayments,
-        totalExpenses: totalExpenses,
-        grossProfit: grossProfit,
-        netProfit: netProfit,
+        totalExpenses,
+        grossProfit: verifiedPayments - totalOps,
+        netProfit,
         totalSalaries: yearSalaries,
         operationalCosts: totalOps,
-        studentCount: studentsStore.filter(s => s.applicationStatus === ApplicationStatus.ACCEPTED).length
+        studentCount: (students || []).filter(s => s.applicationStatus === ApplicationStatus.ACCEPTED).length
       } as FinancialYearSummary,
-      history: historicalYearsStore
+      history: []
     };
   },
 
-  getExpenses: () => [...institutionalExpenses],
-
-  addExpense: (expense: Omit<InstitutionalExpense, 'id' | 'date'>) => {
-    const newExpense: InstitutionalExpense = {
-      ...expense,
-      id: `exp-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0]
-    };
-    institutionalExpenses.unshift(newExpense);
-    return newExpense;
+  getExpenses: async (): Promise<InstitutionalExpense[]> => {
+    const { data } = await supabase.from('expenses').select('*').order('date', { ascending: false });
+    return data || [];
   },
 
-  archiveFinancialYear: () => {
-    const metrics = MockDB.getGrowthMetrics();
-    historicalYearsStore.push(metrics.current);
-    feesStore = [];
-    institutionalExpenses = [];
+  addExpense: async (expense: Omit<InstitutionalExpense, 'id' | 'date'>) => {
+    await supabase.from('expenses').insert([{ ...expense, date: new Date().toISOString().split('T')[0] }]);
   },
 
-  getStaff: () => [...staffStore],
-
-  renewContract: (staffId: string) => {
-    const idx = staffStore.findIndex(s => s.id === staffId);
-    if (idx !== -1) {
-      const nextYear = new Date();
-      nextYear.setFullYear(nextYear.getFullYear() + 1);
-      staffStore[idx] = { 
-        ...staffStore[idx], 
-        contractStatus: 'ACTIVE', 
-        contractExpiryDate: nextYear.toISOString().split('T')[0] 
-      };
-    }
+  getStaff: async (): Promise<StaffMember[]> => {
+    const { data } = await supabase.from('staff').select('*');
+    return data || [];
   },
 
-  terminateContract: (staffId: string) => {
-    const idx = staffStore.findIndex(s => s.id === staffId);
-    if (idx !== -1) {
-      staffStore[idx] = { 
-        ...staffStore[idx], 
-        contractStatus: 'TERMINATED',
-        contractExpiryDate: new Date().toISOString().split('T')[0]
-      };
-    }
+  renewContract: async (staffId: string) => {
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    await supabase.from('staff').update({
+      contractStatus: 'ACTIVE',
+      contractExpiryDate: nextYear.toISOString().split('T')[0]
+    }).eq('id', staffId);
   },
 
-  getStudents: () => [...studentsStore],
-  getStudentById: (id: string) => studentsStore.find(s => s.id === id),
+  terminateContract: async (staffId: string) => {
+    await supabase.from('staff').update({
+      contractStatus: 'TERMINATED',
+      contractExpiryDate: new Date().toISOString().split('T')[0]
+    }).eq('id', staffId);
+  },
 
-  createStudent: (details: Partial<Student>) => {
-    const id = `S-2026-${String(studentsStore.length + 1).padStart(3, '0')}`;
-    const newStudent: Student = { 
+  getStudents: async (): Promise<Student[]> => {
+    const { data } = await supabase.from('students').select('*').order('id', { ascending: true });
+    return data || [];
+  },
+
+  getStudentById: async (id: string): Promise<Student | null> => {
+    const { data } = await supabase.from('students').select('*').eq('id', id).maybeSingle();
+    return data;
+  },
+
+  createStudent: async (details: Partial<Student>) => {
+    const { data: countData } = await supabase.from('students').select('id');
+    const count = (countData?.length || 0) + 1;
+    const id = `S-2026-${String(count).padStart(3, '0')}`;
+    
+    const newStudent: any = { 
       id,
       firstName: (details.firstName || '').toUpperCase(),
       lastName: (details.lastName || '').toUpperCase(),
@@ -212,104 +230,107 @@ export const MockDB = {
       emergencyPhone: details.emergencyPhone,
       submissionDate: new Date().toISOString().split('T')[0]
     };
-    studentsStore.push(newStudent);
-    
-    const grade = newStudent.grade;
-    const feeAmount = grade <= 7 ? 3500 : (grade <= 9 ? 4800 : 6200);
-    feesStore.push({
-      id: `f-init-${id}`,
+
+    const { error } = await supabase.from('students').insert([newStudent]);
+    if (error) throw error;
+
+    const feeAmount = newStudent.grade <= 7 ? 3500 : (newStudent.grade <= 9 ? 4800 : 6200);
+    await supabase.from('fees').insert([{
       studentId: id,
       date: new Date().toISOString().split('T')[0],
       description: 'INITIAL ADMISSION & TERM 1 FEES',
       amount: feeAmount,
       type: 'BILL'
-    });
+    }]);
     
     return newStudent;
   },
 
-  updateStudentStatus: (studentId: string, status: ApplicationStatus, interviewDate?: string) => {
-    const idx = studentsStore.findIndex(s => s.id === studentId);
-    if (idx !== -1) {
-      studentsStore[idx] = { 
-        ...studentsStore[idx], 
-        applicationStatus: status,
-        interviewDate: interviewDate 
-      };
-    }
+  updateStudentStatus: async (studentId: string, status: ApplicationStatus, interviewDate?: string) => {
+    await supabase.from('students').update({
+      applicationStatus: status,
+      interviewDate: interviewDate 
+    }).eq('id', studentId);
   },
 
-  unlockResults: (studentId: string) => {
-    const idx = studentsStore.findIndex(s => s.id === studentId);
-    if (idx !== -1) {
-      studentsStore[idx] = { ...studentsStore[idx], resultsUnlocked: true };
-    }
+  unlockResults: async (studentId: string) => {
+    await supabase.from('students').update({ resultsUnlocked: true }).eq('id', studentId);
   },
 
-  saveReport: (report: StudentReport) => {
-    const idx = reportsStore.findIndex(r => r.id === report.id);
-    if (idx !== -1) {
-      reportsStore[idx] = report;
+  saveReport: async (report: StudentReport) => {
+    const { data: existing } = await supabase.from('reports').select('id').eq('id', report.id).maybeSingle();
+    if (existing) {
+      await supabase.from('reports').update(report).eq('id', report.id);
     } else {
-      reportsStore.push(report);
+      await supabase.from('reports').insert([report]);
     }
-    return report;
   },
 
-  getReportsByStudent: (studentId: string) => reportsStore.filter(r => r.studentId === studentId),
-  getReportsByGrade: (grade: number) => reportsStore.filter(r => {
-    const student = studentsStore.find(s => s.id === r.studentId);
-    return student?.grade === grade;
-  }),
-
-  updateReportStatus: (reportId: string, status: GradeStatus) => {
-    const idx = reportsStore.findIndex(r => r.id === reportId);
-    if (idx !== -1) reportsStore[idx] = { ...reportsStore[idx], status };
+  getReportsByStudent: async (studentId: string): Promise<StudentReport[]> => {
+    const { data } = await supabase.from('reports').select('*').eq('studentId', studentId);
+    return data || [];
   },
 
-  updateReportStatusBatch: (grade: number, type: AssessmentType, status: GradeStatus) => {
-    reportsStore = reportsStore.map(r => {
-      const student = studentsStore.find(s => s.id === r.studentId);
-      if (student?.grade === grade && r.type === type) return { ...r, status };
-      return r;
-    });
+  getReportsByGrade: async (grade: number): Promise<StudentReport[]> => {
+    const { data: students } = await supabase.from('students').select('id').eq('grade', grade);
+    const ids = (students || []).map(s => s.id);
+    const { data: reports } = await supabase.from('reports').select('*').in('studentId', ids);
+    return reports || [];
   },
 
-  getFeesByStudent: (studentId: string) => feesStore.filter(f => f.studentId === studentId),
+  updateReportStatus: async (reportId: string, status: GradeStatus) => {
+    await supabase.from('reports').update({ status }).eq('id', reportId);
+  },
+
+  updateReportStatusBatch: async (grade: number, type: AssessmentType, status: GradeStatus) => {
+    const { data: students } = await supabase.from('students').select('id').eq('grade', grade);
+    const ids = (students || []).map(s => s.id);
+    await supabase.from('reports').update({ status }).in('studentId', ids).eq('type', type);
+  },
+
+  getFeesByStudent: async (studentId: string): Promise<FeeTransaction[]> => {
+    const { data } = await supabase.from('fees').select('*').eq('studentId', studentId).order('date', { ascending: false });
+    return data || [];
+  },
   
-  makePayment: (studentId: string, amount: number, description?: string) => {
-    const newTxn: FeeTransaction = {
-      id: `txn-${Date.now()}`,
+  makePayment: async (studentId: string, amount: number, description?: string) => {
+    await supabase.from('fees').insert([{
       studentId,
       date: new Date().toISOString().split('T')[0],
       description: (description || 'INSTITUTIONAL FEE SETTLEMENT').toUpperCase(),
       amount: -amount,
       type: 'PAYMENT'
-    };
-    feesStore.push(newTxn);
-    return newTxn;
+    }]);
   },
 
-  sendPaymentNotification: (notification: Omit<PaymentNotification, 'id' | 'status' | 'timestamp'>) => {
-    const newNotif: PaymentNotification = {
-      ...notification,
-      id: `notif-${Date.now()}`,
-      status: 'PENDING',
-      timestamp: new Date().toLocaleTimeString()
-    };
-    notificationsStore.push(newNotif);
-    return newNotif;
+  getNotifications: async (): Promise<PaymentNotification[]> => {
+    const { data } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false });
+    return data || [];
   },
 
-  getNotifications: () => [...notificationsStore],
+  sendPaymentNotification: async (notification: Omit<PaymentNotification, 'id' | 'timestamp' | 'status'>) => {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([{
+        ...notification,
+        status: 'PENDING',
+        timestamp: new Date().toISOString()
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
 
-  verifyNotification: (notifId: string) => {
-    const notifIdx = notificationsStore.findIndex(n => n.id === notifId);
-    if (notifIdx !== -1) {
-      notificationsStore[notifIdx].status = 'VERIFIED';
-      MockDB.unlockResults(notificationsStore[notifIdx].studentId);
+  verifyNotification: async (notifId: string) => {
+    const { data: notif } = await supabase.from('notifications').update({ status: 'VERIFIED' }).eq('id', notifId).select().single();
+    if (notif) {
+      await MockDB.unlockResults(notif.studentId);
     }
   },
 
-  getGradesByStudent: (studentId: string) => gradesStore.filter(g => g.studentId === studentId)
+  getGradesByStudent: async (studentId: string) => {
+    const { data } = await supabase.from('reports').select('*').eq('studentId', studentId).eq('status', 'PUBLISHED');
+    return data || [];
+  }
 };

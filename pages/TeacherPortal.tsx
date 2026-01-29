@@ -46,8 +46,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
   const [activePupilId, setActivePupilId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
-  
-  // Current Editing Report State
   const [activeType, setActiveType] = useState<AssessmentType>('End-of-Term');
   const [editingReport, setEditingReport] = useState<Partial<StudentReport> | null>(null);
 
@@ -62,12 +60,19 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
     setStudents(allStudents);
   }, []);
 
-  const handleOpenReport = (studentId: string) => {
+  // Sync editingReport whenever pupil or type changes
+  useEffect(() => {
+    if (activePupilId) {
+      loadReport(activePupilId, activeType);
+    }
+  }, [activePupilId, activeType]);
+
+  const loadReport = (studentId: string, type: AssessmentType) => {
     const student = students.find(s => s.id === studentId);
     if (!student) return;
 
     const existingReports = MockDB.getReportsByStudent(studentId);
-    const report = existingReports.find(r => r.type === activeType);
+    const report = existingReports.find(r => r.type === type);
 
     if (report) {
       setEditingReport(report);
@@ -82,9 +87,9 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
       }));
 
       setEditingReport({
-        id: `REP-${activeType}-${studentId}-${Date.now()}`,
+        id: `REP-${type}-${studentId}-${Date.now()}`,
         studentId,
-        type: activeType,
+        type,
         term: 'Term 1',
         academicYear: 2026,
         subjects: initialSubjects,
@@ -96,7 +101,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
         status: GradeStatus.DRAFT
       });
     }
-    setActivePupilId(studentId);
   };
 
   const calculateGrade = (pct: number) => {
@@ -154,7 +158,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
     if (!activeGrade) return;
     if (confirm(`BULK SUBMIT: Transmit ALL initialized Grade ${activeGrade} (${activeType}) reports to the Exams Portal? This action will LOCK all current drafts.`)) {
       MockDB.updateReportStatusBatch(activeGrade, activeType, GradeStatus.SUBMITTED);
-      if (activePupilId) handleOpenReport(activePupilId); // Refresh current view
+      if (activePupilId) loadReport(activePupilId, activeType); 
       alert(`All Grade ${activeGrade} ${activeType} reports have been synchronized with the Exams Portal.`);
     }
   };
@@ -169,7 +173,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      {/* Dynamic Header */}
       <div className="bg-femac-900 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden text-white">
         <div className="absolute top-0 right-0 w-64 h-64 bg-femac-yellow opacity-5 blur-[100px]"></div>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
@@ -187,7 +190,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
               {(['End-of-Term', 'Mid-Term', 'Mid-week Assessment'] as AssessmentType[]).map(type => (
                 <button 
                   key={type}
-                  onClick={() => { setActiveType(type); if(activePupilId) handleOpenReport(activePupilId); }}
+                  onClick={() => setActiveType(type)}
                   className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeType === type ? 'bg-femac-yellow text-femac-900 shadow-lg' : 'text-femac-300 hover:text-white'}`}
                 >
                   {type}
@@ -208,7 +211,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Pupil List Sidebar */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col h-[700px]">
             <div className="mb-6 space-y-4">
@@ -240,7 +242,7 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
               {filteredStudents.length > 0 ? filteredStudents.map(s => (
                 <button 
                   key={s.id}
-                  onClick={() => handleOpenReport(s.id)}
+                  onClick={() => setActivePupilId(s.id)}
                   className={`w-full flex items-center p-4 rounded-2xl transition-all border-2 ${activePupilId === s.id ? 'border-femac-yellow bg-femac-50/50' : 'border-transparent hover:bg-slate-50'}`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm uppercase mr-4 ${activePupilId === s.id ? 'bg-femac-900 text-femac-yellow' : 'bg-slate-100 text-slate-500'}`}>
@@ -261,7 +263,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
           </div>
         </div>
 
-        {/* Detailed Report Entry Form */}
         <div className="lg:col-span-3">
           {activePupilId && editingReport ? (
             <div className="bg-white p-12 rounded-[4rem] shadow-sm border border-slate-100 animate-in slide-in-from-right-4 duration-500">
@@ -294,7 +295,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
                 </div>
               </div>
 
-              {/* Subject Matrix */}
               <div className="bg-slate-50/50 rounded-[2.5rem] border border-slate-100 overflow-hidden mb-12">
                 <table className="w-full text-left">
                   <thead className="bg-white border-b border-slate-100">
@@ -343,7 +343,6 @@ export const TeacherPortal: React.FC<TeacherPortalProps> = ({ currentUser }) => 
                 </table>
               </div>
 
-              {/* Comments Node */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2 flex items-center">
                   <FileText size={14} className="mr-2 text-femac-yellow" /> Official Teacher's Registry Comment

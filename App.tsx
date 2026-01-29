@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { User, UserRole, ApplicationStatus } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, UserRole, ApplicationStatus, Announcement } from './types';
 import { MOCK_USERS } from './constants';
 import { MockDB } from './services/mockDb';
 import { Layout } from './components/Layout';
@@ -17,7 +16,8 @@ import {
   FileEdit, UserPlus, CreditCard, Smartphone, Landmark, Copy,
   User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload, Download,
   Home, Lock, MessageCircle, Facebook, Hash, Map, UserCheck, Search, SearchCode,
-  CheckCircle, XCircle, Clock, FileCheck, Briefcase, IdCard, Star, Timer
+  CheckCircle, XCircle, Clock, FileCheck, Briefcase, IdCard, Star, Timer, ShieldAlert,
+  ChevronLeft, Megaphone, CalendarClock, RotateCw, Volume2, VolumeX
 } from 'lucide-react';
 
 // Helper function for role display labels
@@ -26,10 +26,81 @@ const getRoleDisplayLabel = (role: UserRole) => {
   return role.replace('_', ' ');
 };
 
+const AnnouncementSlideshow: React.FC = () => {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    setAnnouncements(MockDB.getAnnouncements());
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (announcements.length > 0 ? (prev + 1) % announcements.length : 0));
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [announcements.length]);
+
+  if (announcements.length === 0) return null;
+
+  const current = announcements[currentIndex];
+
+  return (
+    <section className="py-24 px-6 bg-slate-50 relative overflow-hidden border-t border-slate-100">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-12">
+          <div>
+            <h2 className="text-sm font-black text-femac-yellow uppercase tracking-[0.4em] mb-3">Notice Board</h2>
+            <h3 className="text-5xl font-black text-femac-900 tracking-tighter leading-none uppercase">School <span className="text-femac-yellow">Broadcasts</span></h3>
+          </div>
+          <div className="flex items-center space-x-4">
+             <button onClick={() => setCurrentIndex(prev => (prev - 1 + announcements.length) % announcements.length)} className="w-14 h-14 rounded-2xl bg-white border-2 border-slate-100 text-femac-900 flex items-center justify-center hover:border-femac-yellow transition-all shadow-sm active:scale-95"><ChevronLeft size={24}/></button>
+             <button onClick={() => setCurrentIndex(prev => (prev + 1) % announcements.length)} className="w-14 h-14 rounded-2xl bg-femac-900 text-femac-yellow flex items-center justify-center hover:bg-femac-800 transition-all shadow-xl active:scale-95"><ChevronRight size={24}/></button>
+          </div>
+        </div>
+
+        <div className="relative h-[600px] rounded-[4rem] overflow-hidden shadow-2xl bg-femac-900 group" key={current.id}>
+           {current.imageUrl ? (
+             <>
+               <img src={current.imageUrl} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[10s] ease-linear" alt={current.title} />
+               <div className="absolute inset-0 bg-gradient-to-t from-femac-900 via-femac-900/40 to-transparent"></div>
+             </>
+           ) : (
+             <div className="absolute inset-0 flex items-center justify-center opacity-5">
+               <Megaphone size={300} className="text-white" />
+             </div>
+           )}
+
+           <div className="absolute inset-0 p-12 md:p-24 flex flex-col justify-end">
+              <div className="max-w-3xl animate-in slide-in-from-bottom-10 duration-700">
+                <div className="flex items-center space-x-4 mb-6">
+                  <span className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] ${current.priority === 'URGENT' ? 'bg-red-600 text-white animate-pulse' : 'bg-femac-yellow text-femac-900'}`}>
+                    {current.priority === 'URGENT' ? 'Urgent Alert' : 'Registry Notice'}
+                  </span>
+                  <span className="text-xs font-black text-white/60 uppercase tracking-widest">{current.date}</span>
+                </div>
+                <h4 className="text-4xl md:text-7xl font-black text-white uppercase tracking-tighter leading-[0.9] mb-8">
+                  {current.title}
+                </h4>
+                <p className="text-xl md:text-2xl text-femac-100 font-medium leading-relaxed mb-10 opacity-90">
+                  {current.content}
+                </p>
+                <div className="flex items-center space-x-2">
+                   {announcements.map((_, idx) => (
+                     <div key={idx} className={`h-1.5 rounded-full transition-all duration-500 ${idx === currentIndex ? 'w-12 bg-femac-yellow' : 'w-3 bg-white/20'}`}></div>
+                   ))}
+                </div>
+              </div>
+           </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<'website' | 'login' | 'portal'>('website');
   const [activePage, setActivePage] = useState('dashboard');
+  const [isMuted, setIsMuted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   
   // Login Sub-States
   const [loginStep, setLoginStep] = useState<'role' | 'grade' | 'password'>('role');
@@ -41,20 +112,18 @@ const App: React.FC = () => {
   // Admission States
   const [showAdmissionModal, setShowAdmissionModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [activeAdmissionTab, setActiveAdmissionTab] = useState<null | 'fees' | 'form' | 'policy' | 'tracker'>(null);
+  const [activeAdmissionTab, setActiveAdmissionTab] = useState<null | 'fees' | 'form' | 'tracker' | 'policy'>(null);
   const [isFillingForm, setIsFillingForm] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
 
-  // Form Field States - Detailed Profile
+  // Form Field States
   const [formFirstName, setFormFirstName] = useState('');
   const [formLastName, setFormLastName] = useState('');
   const [formGender, setFormGender] = useState('');
   const [formGrade, setFormGrade] = useState('');
   const [formDob, setFormDob] = useState('');
   const [formPrevSchool, setFormPrevSchool] = useState('');
-  
-  // Guardian Fields
   const [formGuardianName, setFormGuardianName] = useState('');
   const [formParentNrc, setFormParentNrc] = useState('');
   const [formRelationship, setFormRelationship] = useState('');
@@ -62,8 +131,6 @@ const App: React.FC = () => {
   const [formPhone, setFormPhone] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formAddress, setFormAddress] = useState('');
-  
-  // Emergency Fields
   const [formEmergencyName, setFormEmergencyName] = useState('');
   const [formEmergencyPhone, setFormEmergencyPhone] = useState('');
 
@@ -72,6 +139,42 @@ const App: React.FC = () => {
   const [trackedApplication, setTrackedApplication] = useState<any>(null);
 
   const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png"; 
+  const BGM_URL = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"; // Gentle Ambient Piano
+
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      if (view === 'website' && audioRef.current && !isMuted) {
+        audioRef.current.play().catch(() => {});
+        window.removeEventListener('click', handleFirstInteraction);
+      }
+    };
+
+    if (view === 'website') {
+      window.addEventListener('click', handleFirstInteraction);
+      if (audioRef.current) {
+        audioRef.current.volume = 0.3;
+        audioRef.current.play().catch(() => {
+          // Fallback to click listener handled above
+        });
+      }
+    } else {
+      audioRef.current?.pause();
+    }
+
+    return () => window.removeEventListener('click', handleFirstInteraction);
+  }, [view, isMuted]);
+
+  const toggleMute = () => {
+    if (audioRef.current) {
+      if (isMuted) {
+        audioRef.current.play();
+        setIsMuted(false);
+      } else {
+        audioRef.current.pause();
+        setIsMuted(true);
+      }
+    }
+  };
 
   const handleRoleSelect = (role: UserRole) => {
     if (role === UserRole.TEACHER) {
@@ -166,7 +269,6 @@ const App: React.FC = () => {
     });
     setLastSubmissionId(newStudent.id);
     setFormSubmitted(true);
-    
     setFormFirstName(''); setFormLastName(''); setFormGender(''); setFormGrade(''); setFormDob(''); setFormPrevSchool('');
     setFormGuardianName(''); setFormParentNrc(''); setFormRelationship(''); setFormOccupation(''); 
     setFormPhone(''); setFormEmail(''); setFormAddress('');
@@ -188,7 +290,6 @@ const App: React.FC = () => {
     setTrackedApplication(null);
   };
 
-  // Login view logic
   if (view === 'login') {
     const rolesToShow = [UserRole.PUPIL, UserRole.PARENT, UserRole.TEACHER, UserRole.EXAMS_OFFICE, UserRole.EXECUTIVE_ACCOUNTS];
     const teacherUserIds = ['U-TEA-G1', 'U-TEA-G2', 'U-TEA-G3', 'U-TEA-G4', 'U-TEA-G5', 'U-TEA-G6', 'U-TEA-G7', 'U-TEA-F1'];
@@ -281,7 +382,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Portal view logic
   if (view === 'portal' && user) {
     const renderContent = () => {
       if (user.role === UserRole.TEACHER) return <TeacherPortal currentUser={user} />;
@@ -294,32 +394,35 @@ const App: React.FC = () => {
     return <Layout user={user} onLogout={handleLogout} onGoHome={handleGoHome} activePage={activePage} onNavigate={setActivePage}>{renderContent()}</Layout>;
   }
 
-  // Website / Landing Page logic
   return (
     <div className="min-h-screen bg-white relative">
+      <audio ref={audioRef} src={BGM_URL} loop />
       <div className="fixed inset-0 flex items-center justify-center opacity-[0.02] pointer-events-none z-0">
         <img src={LOGO_URL} alt="" className="w-[800px] h-[800px] object-contain rotate-12" />
       </div>
 
-      <nav className="fixed top-0 w-full bg-femac-900/95 backdrop-blur-md text-white z-50 shadow-lg px-6 py-4 flex justify-between items-center border-b border-femac-yellow/20">
-        <button onClick={handleGoHome} className="flex items-center space-x-4 hover:opacity-80 transition-opacity">
-          <img src={LOGO_URL} alt="FEMAC Logo" className="h-12 w-12 object-contain" />
-          <div className="flex flex-col text-left">
-            <span className="text-3xl font-black tracking-tighter text-femac-yellow leading-none uppercase">FEMAC ACADEMY</span>
-            <span className="text-[11px] tracking-[0.25em] text-femac-300 font-black uppercase">Dedicated to Excellence</span>
+      <nav className="fixed top-0 w-full bg-femac-900/95 backdrop-blur-md text-white z-50 shadow-lg border-b border-femac-yellow/20">
+        <div className="px-6 py-4 flex justify-between items-center">
+          <button onClick={handleGoHome} className="flex items-center space-x-4 hover:opacity-80 transition-opacity">
+            <img src={LOGO_URL} alt="FEMAC Logo" className="h-12 w-12 object-contain" />
+            <div className="flex flex-col text-left">
+              <span className="text-3xl font-black tracking-tighter text-femac-yellow leading-none uppercase">FEMAC ACADEMY</span>
+              <span className="text-[11px] tracking-[0.25em] text-femac-300 font-black uppercase">Dedicated to Excellence</span>
+            </div>
+          </button>
+          <div className="hidden lg:flex items-center space-x-8 text-xs font-black uppercase tracking-widest text-femac-100">
+            <button onClick={toggleMute} className="flex items-center space-x-2 text-femac-yellow hover:text-white transition-all bg-white/5 px-4 py-2 rounded-full border border-white/10 group">
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} className="animate-pulse" />}
+              <span className="text-[10px]">{isMuted ? 'UNMUTE AMBIENCE' : 'MUTE AMBIENCE'}</span>
+            </button>
+            <button onClick={() => setShowCalendarModal(true)} className="flex items-center text-femac-yellow hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-full border border-white/10">
+              <Calendar size={14} className="mr-2" /> Calendar
+            </button>
           </div>
-        </button>
-        <div className="hidden lg:flex items-center space-x-8 text-xs font-black uppercase tracking-widest text-femac-100">
-          <a href="#about" className="hover:text-femac-yellow transition-colors">About</a>
-          <a href="#academic" className="hover:text-femac-yellow transition-colors">Academic</a>
-          <a href="#admissions" className="hover:text-femac-yellow transition-colors">Admissions</a>
-          <button onClick={() => setShowCalendarModal(true)} className="flex items-center text-femac-yellow hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-full border border-white/10">
-            <Calendar size={14} className="mr-2" /> Calendar
+          <button onClick={() => setView(user ? 'portal' : 'login')} className="bg-femac-yellow text-femac-900 px-8 py-2.5 rounded-full font-black text-sm hover:scale-105 transition-all shadow-xl flex items-center">
+            {user ? 'Back to Portal' : 'Portal Login'} <ChevronRight size={18} className="ml-1" />
           </button>
         </div>
-        <button onClick={() => setView(user ? 'portal' : 'login')} className="bg-femac-yellow text-femac-900 px-8 py-2.5 rounded-full font-black text-sm hover:scale-105 transition-all shadow-xl flex items-center">
-          {user ? 'Back to Portal' : 'Portal Login'} <ChevronRight size={18} className="ml-1" />
-        </button>
       </nav>
 
       <header className="pt-44 pb-24 px-6 bg-femac-900 text-white relative overflow-hidden">
@@ -336,7 +439,6 @@ const App: React.FC = () => {
               <button onClick={() => setShowAdmissionModal(true)} className="bg-femac-yellow text-femac-900 px-10 py-5 rounded-2xl font-black text-lg shadow-2xl hover:bg-white transition-all transform hover:-translate-y-1">
                 Enroll Your Child
               </button>
-              {/* Note: 'Track Application' hidden from hero for cleaner UI as requested */}
             </div>
           </div>
           <div className="md:w-1/2 grid grid-cols-2 gap-6">
@@ -360,7 +462,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* About Section */}
       <section id="about" className="py-24 px-6 bg-white relative z-10 scroll-mt-20">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row gap-16 items-center">
@@ -397,7 +498,6 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* Academic Section */}
       <section id="academic" className="py-24 px-6 bg-slate-50 relative z-10 scroll-mt-20">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
@@ -458,7 +558,6 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* Admissions Section */}
       <section id="admissions" className="py-32 px-6 bg-femac-900 text-white relative overflow-hidden z-10 scroll-mt-20">
         <div className="absolute inset-0 opacity-10 flex items-center justify-center">
            <img src={LOGO_URL} alt="" className="w-full h-full object-cover scale-150 rotate-[30deg]" />
@@ -475,12 +574,12 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* School Calendar Modal */}
+      <AnnouncementSlideshow />
+
       {showCalendarModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden relative border border-white/20 min-h-[700px] flex flex-col md:flex-row">
             <button onClick={() => setShowCalendarModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-femac-900 transition-colors z-[110]"><X size={32} /></button>
-            
             <div className="md:w-1/4 bg-femac-900 p-10 text-white flex flex-col justify-center relative overflow-hidden shrink-0">
                 <div className="absolute -top-10 -left-10 w-40 h-40 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
                 <img src={LOGO_URL} alt="Logo" className="w-20 h-20 mb-8 relative z-10 mx-auto md:mx-0" />
@@ -493,7 +592,6 @@ const App: React.FC = () => {
                   <button onClick={() => setShowCalendarModal(false)} className="flex items-center space-x-2 text-white/60 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/30 px-4 py-2 rounded-full w-full justify-center md:justify-start mt-8"><Home size={14} /> <span>Return to Home</span></button>
                 </div>
             </div>
-
             <div className="md:w-3/4 p-10 md:p-14 flex flex-col bg-white overflow-y-auto max-h-[90vh] custom-scrollbar">
                 <div className="flex items-center justify-between mb-12 border-b border-slate-100 pb-6">
                     <div>
@@ -505,9 +603,7 @@ const App: React.FC = () => {
                         <span className="text-xs font-black uppercase tracking-widest">Live Registry Sync</span>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-1 gap-12">
-                    {/* Term 1 */}
                     <div className="space-y-6">
                         <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
                             <Star size={20} className="text-femac-900" />
@@ -528,8 +624,6 @@ const App: React.FC = () => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Term 2 */}
                     <div className="space-y-6">
                         <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
                             <Zap size={20} className="text-femac-900" />
@@ -550,8 +644,6 @@ const App: React.FC = () => {
                             </div>
                         </div>
                     </div>
-
-                    {/* Term 3 */}
                     <div className="space-y-6">
                         <div className="flex items-center space-x-3 text-femac-900 border-b-4 border-femac-yellow pb-2 w-fit">
                             <Trophy size={20} className="text-femac-900" />
@@ -573,7 +665,6 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
-
                 <div className="mt-16 p-8 bg-femac-900 text-white rounded-[2rem] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex items-center space-x-4">
                         <div className="p-3 bg-white/10 rounded-xl"><Map size={24} className="text-femac-yellow" /></div>
@@ -591,7 +682,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Admission Process Modal */}
       {showAdmissionModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden relative border border-white/20 min-h-[700px]">
@@ -610,10 +700,14 @@ const App: React.FC = () => {
                 {!activeAdmissionTab && !isFillingForm ? (
                   <div className="flex flex-col justify-center h-full">
                     <h4 className="text-2xl font-black text-slate-800 tracking-tight mb-8 uppercase border-b border-slate-100 pb-4">Required Action Steps</h4>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <button onClick={() => setActiveAdmissionTab('fees')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
                         <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><DollarSign className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
                         <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">SCHOOL FEES</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Financial breakdown per level</span></div>
+                      </button>
+                      <button onClick={() => setActiveAdmissionTab('policy')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
+                        <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><ShieldAlert className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
+                        <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">PAYMENT POLICY</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Institutional financial rules</span></div>
                       </button>
                       <button onClick={() => setActiveAdmissionTab('form')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
                         <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><FileEdit className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
@@ -622,10 +716,6 @@ const App: React.FC = () => {
                       <button onClick={() => setActiveAdmissionTab('tracker')} className="flex items-center space-x-6 p-6 bg-femac-900 text-white rounded-[2rem] hover:bg-femac-800 transition-all group text-left shadow-2xl">
                         <div className="w-16 h-16 bg-femac-yellow rounded-2xl flex items-center justify-center shadow-lg"><SearchCode className="text-femac-900" size={28} /></div>
                         <div><span className="block text-xl font-black text-femac-yellow uppercase tracking-tight">TRACK APPLICATION</span><span className="text-xs text-femac-300 font-bold uppercase tracking-widest">Live Enrollment Status</span></div>
-                      </button>
-                      <button onClick={() => setActiveAdmissionTab('policy')} className="flex items-center space-x-6 p-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] hover:border-femac-yellow hover:bg-yellow-50/50 transition-all group text-left shadow-sm">
-                        <div className="w-16 h-16 bg-femac-900 rounded-2xl flex items-center justify-center shadow-lg group-hover:bg-femac-yellow transition-colors"><ShieldCheck className="text-femac-yellow group-hover:text-femac-900 transition-colors" size={28} /></div>
-                        <div><span className="block text-xl font-black text-femac-900 uppercase tracking-tight">PAYMENT POLICY</span><span className="text-xs text-slate-500 font-bold uppercase tracking-widest">Terms, conditions & deadlines</span></div>
                       </button>
                     </div>
                   </div>
@@ -637,35 +727,23 @@ const App: React.FC = () => {
                                 <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Application Tracker</h4>
                                 <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mb-8">Official Enrollment Retrieval</p>
                             </div>
-                            
                             <form onSubmit={handleTrackApplication} className="space-y-6">
                                <div className="relative">
                                   <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
-                                  <input 
-                                    required
-                                    type="text" 
-                                    value={trackerSearchTerm} 
-                                    onChange={(e) => setTrackerSearchTerm(e.target.value)} 
-                                    placeholder="Enter Candidate Registry ID (e.g. S-2026-001)" 
-                                    className="w-full pl-16 pr-6 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-black text-femac-900 uppercase text-lg focus:border-femac-yellow transition-all"
-                                  />
+                                  <input required type="text" value={trackerSearchTerm} onChange={(e) => setTrackerSearchTerm(e.target.value)} placeholder="Enter Candidate Registry ID (e.g. S-2026-001)" className="w-full pl-16 pr-6 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-black text-femac-900 uppercase text-lg focus:border-femac-yellow transition-all" />
                                </div>
-                               <button type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest hover:bg-femac-800 transition-all flex items-center justify-center shadow-xl">
-                                  Check Registry Status
-                               </button>
+                               <button type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest hover:bg-femac-800 transition-all flex items-center justify-center shadow-xl">Check Registry Status</button>
                             </form>
-
                             {trackedApplication && trackedApplication !== 'NOT_FOUND' && (
                                 <div className="bg-slate-50 p-10 rounded-[3rem] border-2 border-femac-yellow/20 animate-in zoom-in duration-300">
                                    <div className="flex items-center space-x-6 mb-8">
-                                      <div className="w-20 h-20 bg-femac-900 rounded-[1.5rem] flex items-center justify-center text-femac-yellow text-3xl font-black uppercase shadow-xl">PUPIL</div>
+                                      <div className="w-20 h-20 bg-femac-900 rounded-[1.5rem] flex items-center justify-center text-femac-yellow text-3xl font-black uppercase shadow-xl">FILE</div>
                                       <div>
                                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Academic Identifier</p>
                                          <h5 className="text-3xl font-black text-femac-900 uppercase tracking-tighter leading-none">{trackedApplication.id}</h5>
                                          <p className="text-xs font-bold text-slate-500 mt-2 uppercase tracking-widest">{trackedApplication.firstName} {trackedApplication.lastName} • Grade {trackedApplication.grade}</p>
                                       </div>
                                    </div>
-
                                    <div className="grid grid-cols-1 gap-6">
                                       {trackedApplication.applicationStatus === ApplicationStatus.PENDING && (
                                         <div className="bg-white p-8 rounded-3xl border border-amber-100 flex items-start space-x-4 shadow-sm">
@@ -686,24 +764,37 @@ const App: React.FC = () => {
                                            </div>
                                         </div>
                                       )}
+                                      {trackedApplication.applicationStatus === ApplicationStatus.INTERVIEW && (
+                                        <div className="bg-white p-8 rounded-3xl border border-blue-100 flex items-start space-x-4 shadow-sm">
+                                           <div className="shrink-0 bg-blue-50 p-4 rounded-2xl"><CalendarClock className="text-blue-600" size={32} /></div>
+                                           <div>
+                                              <p className="text-lg font-black text-blue-700 uppercase tracking-tight mb-1">Interview Scheduled</p>
+                                              <p className="text-xs text-slate-500 font-medium leading-relaxed mb-4 uppercase tracking-wide">The candidate is subjected to an entrance evaluation. Please report to the school physically with the candidate.</p>
+                                              <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                                                 <p className="text-[10px] font-black uppercase text-blue-400 mb-1">Reporting Date</p>
+                                                 <p className="font-black text-blue-900 text-xl uppercase tracking-tighter">{trackedApplication.interviewDate || 'To be specified'}</p>
+                                              </div>
+                                           </div>
+                                        </div>
+                                      )}
                                       {trackedApplication.applicationStatus === ApplicationStatus.DECLINED && (
                                         <div className="bg-white p-8 rounded-3xl border border-red-100 flex items-start space-x-4 shadow-sm">
                                            <div className="shrink-0 bg-red-50 p-4 rounded-2xl"><XCircle className="text-red-600" size={32} /></div>
                                            <div>
                                               <p className="text-lg font-black text-red-700 uppercase tracking-tight mb-1">Registry Update</p>
-                                              <p className="text-xs text-slate-500 font-medium leading-relaxed">We regret to inform you that we are unable to offer enrollment at this time. Please contact the Admissions Office for more detailed feedback.</p>
+                                              <p className="text-xs text-slate-500 font-medium leading-relaxed mb-6">We regret to inform you that we are unable to offer enrollment based on the current file review.</p>
+                                              <button onClick={() => { setIsFillingForm(false); setActiveAdmissionTab('form'); setTrackedApplication(null); }} className="bg-femac-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center hover:bg-femac-800 transition-all shadow-lg"><RotateCw size={14} className="mr-2 text-femac-yellow" /> Try Applying Again</button>
                                            </div>
                                         </div>
                                       )}
                                    </div>
                                 </div>
                             )}
-
                             {trackedApplication === 'NOT_FOUND' && (
                                 <div className="bg-red-50 p-10 rounded-[3rem] border border-red-100 text-center animate-in shake duration-300">
                                    <AlertCircle className="mx-auto text-red-500 mb-4" size={48} />
                                    <h5 className="text-xl font-black text-red-700 uppercase tracking-tight mb-2">Invalid Registry Key</h5>
-                                   <p className="text-xs text-red-600 font-medium">No application found matching that Identifier. Ensure you enter the exact ID provided during submission.</p>
+                                   <p className="text-xs text-red-600 font-medium">No application found matching that Identifier.</p>
                                 </div>
                             )}
                         </div>
@@ -720,6 +811,26 @@ const App: React.FC = () => {
                                         <tr><td className="py-3 font-bold text-slate-700">Senior Secondary (G10 - G12)</td><td className="py-3 text-right font-black text-femac-900">K 6,200.00</td></tr>
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    )}
+                    {activeAdmissionTab === 'policy' && (
+                        <div>
+                            <h4 className="text-4xl font-black text-femac-900 mb-2 uppercase tracking-tight">Payment Policy</h4>
+                            <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.2em] mb-8">Institutional Financial Mandate</p>
+                            <div className="space-y-6">
+                              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                                <h5 className="text-lg font-black text-femac-900 uppercase tracking-tight mb-4 flex items-center">
+                                  <ShieldAlert className="mr-3 text-femac-yellow" /> Verification Mandate
+                                </h5>
+                                <p className="text-xs text-slate-600 leading-relaxed font-medium uppercase tracking-wide">After payment, parents must send a notification to Executive Accounts for instant result unlocking and registry propagation.</p>
+                              </div>
+                              <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                                <h5 className="text-lg font-black text-femac-900 uppercase tracking-tight mb-4 flex items-center">
+                                  <Lock className="mr-3 text-femac-yellow" /> Access Authorisation
+                                </h5>
+                                <p className="text-xs text-slate-600 leading-relaxed font-medium uppercase tracking-wide">Results and academic files only unlock after the Executive Registry confirms payment hashes.</p>
+                              </div>
                             </div>
                         </div>
                     )}
@@ -890,6 +1001,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
       <footer className="bg-femac-900 border-t border-white/5 py-16 px-6 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="flex flex-col items-start md:w-1/3">

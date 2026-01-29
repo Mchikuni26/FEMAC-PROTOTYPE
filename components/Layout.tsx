@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { 
   LayoutDashboard, BookOpen, GraduationCap, Users, DollarSign, Menu, X, LogOut, 
-  CheckCircle, TrendingUp, Briefcase, Mail, Phone, MessageCircle, Facebook, User as UserIcon 
+  CheckCircle, TrendingUp, Briefcase, Mail, Phone, MessageCircle, Facebook, User as UserIcon,
+  Maximize, Minimize, Megaphone
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -17,7 +18,28 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, children, activePage, onNavigate }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const LOGO_URL = "https://i.ibb.co/p6V85m6L/image.png";
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   const getNavItems = (role: UserRole) => {
     switch (role) {
@@ -45,6 +67,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
         return [
           { id: 'financials', label: 'Financials', icon: DollarSign },
           { id: 'messages', label: 'Executive Chat', icon: MessageCircle },
+          { id: 'announcements', label: 'Announcements', icon: Megaphone },
           { id: 'staff', label: 'Staffing', icon: Briefcase },
           { id: 'growth', label: 'Growth', icon: TrendingUp },
         ];
@@ -67,9 +90,14 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
           <img src={LOGO_URL} alt="Logo" className="h-8 w-8 object-contain" />
           <span className="font-extrabold text-xl tracking-tighter text-femac-yellow uppercase">FEMAC ACADEMY</span>
         </button>
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center space-x-4">
+          <button onClick={toggleFullscreen} className="p-2 hover:bg-femac-800 rounded-lg text-femac-yellow transition-colors">
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
+          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       <aside className={`
@@ -87,7 +115,7 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -130,6 +158,21 @@ export const Layout: React.FC<LayoutProps> = ({ user, onLogout, onGoHome, childr
       </aside>
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto h-screen relative flex flex-col">
+        {/* Fullscreen Toggle Utility - Desktop */}
+        <div className="hidden md:flex absolute top-8 right-8 z-30">
+          <button 
+            onClick={toggleFullscreen} 
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            className="p-3 bg-white/80 backdrop-blur-md border border-slate-200 text-femac-900 rounded-2xl shadow-lg hover:shadow-xl hover:bg-white hover:scale-105 active:scale-95 transition-all group"
+          >
+            {isFullscreen ? (
+              <Minimize size={24} className="group-hover:text-femac-yellow transition-colors" />
+            ) : (
+              <Maximize size={24} className="group-hover:text-femac-yellow transition-colors" />
+            )}
+          </button>
+        </div>
+
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-[0.015] pointer-events-none z-0">
           <img src={LOGO_URL} alt="" className="w-[500px] h-[500px] object-contain" />
         </div>

@@ -3,9 +3,9 @@ import {
   GradeRecord, GradeStatus, Assignment, FeeTransaction, 
   Student, ApplicationStatus, PaymentNotification, AssessmentType,
   StudentReport, SubjectPerformance, StaffMember, FinancialYearSummary, InstitutionalExpense,
-  ChatSession, ChatMessage, UserRole 
+  ChatSession, ChatMessage, UserRole, Announcement 
 } from '../types';
-import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES, MOCK_STUDENTS, MOCK_CLASSES, MOCK_STAFF } from '../constants';
+import { MOCK_GRADES, MOCK_ASSIGNMENTS, MOCK_FEES, MOCK_STUDENTS, MOCK_STAFF } from '../constants';
 
 // Persist state in memory for the session
 let gradesStore = [...MOCK_GRADES];
@@ -16,6 +16,15 @@ let staffStore = [...MOCK_STAFF];
 let notificationsStore: PaymentNotification[] = [];
 let reportsStore: StudentReport[] = [];
 let chatSessionsStore: ChatSession[] = [];
+let announcementsStore: Announcement[] = [
+  {
+    id: 'ann-1',
+    title: 'Academic Year 2026 Enrollment',
+    content: 'We are pleased to announce that enrollment for the 2026 academic session is now officially open across all grade levels.',
+    date: '2026-01-01',
+    priority: 'NORMAL'
+  }
+];
 
 let historicalYearsStore: FinancialYearSummary[] = [
   { year: 2023, totalRevenue: 850000, totalExpenses: 420000, grossProfit: 850000, netProfit: 430000, totalSalaries: 380000, operationalCosts: 40000, studentCount: 180 },
@@ -30,6 +39,21 @@ let institutionalExpenses: InstitutionalExpense[] = [
 ];
 
 export const MockDB = {
+  // Announcements
+  getAnnouncements: () => [...announcementsStore],
+  addAnnouncement: (announcement: Omit<Announcement, 'id' | 'date'>) => {
+    const newAnn: Announcement = {
+      ...announcement,
+      id: `ann-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0]
+    };
+    announcementsStore.unshift(newAnn);
+    return newAnn;
+  },
+  deleteAnnouncement: (id: string) => {
+    announcementsStore = announcementsStore.filter(a => a.id !== id);
+  },
+
   // Chat Logic
   getChatSessions: () => [...chatSessionsStore],
   
@@ -88,7 +112,7 @@ export const MockDB = {
     }
   },
 
-  // Rest of Existing Methods
+  // Growth & Financials
   getGrowthMetrics: () => {
     const currentYear = new Date().getFullYear();
     const verifiedPayments = feesStore.filter(f => f.type === 'PAYMENT').reduce((acc, curr) => acc + Math.abs(curr.amount), 0);
@@ -168,8 +192,8 @@ export const MockDB = {
     const id = `S-2026-${String(studentsStore.length + 1).padStart(3, '0')}`;
     const newStudent: Student = { 
       id,
-      firstName: details.firstName || '',
-      lastName: details.lastName || '',
+      firstName: (details.firstName || '').toUpperCase(),
+      lastName: (details.lastName || '').toUpperCase(),
       grade: details.grade || 1,
       parentId: details.parentId || 'U-PAR-PROSPECT',
       applicationStatus: ApplicationStatus.PENDING,
@@ -196,7 +220,7 @@ export const MockDB = {
       id: `f-init-${id}`,
       studentId: id,
       date: new Date().toISOString().split('T')[0],
-      description: 'Initial Admission & Term 1 Fees',
+      description: 'INITIAL ADMISSION & TERM 1 FEES',
       amount: feeAmount,
       type: 'BILL'
     });
@@ -204,10 +228,14 @@ export const MockDB = {
     return newStudent;
   },
 
-  updateStudentStatus: (studentId: string, status: ApplicationStatus) => {
+  updateStudentStatus: (studentId: string, status: ApplicationStatus, interviewDate?: string) => {
     const idx = studentsStore.findIndex(s => s.id === studentId);
     if (idx !== -1) {
-      studentsStore[idx] = { ...studentsStore[idx], applicationStatus: status };
+      studentsStore[idx] = { 
+        ...studentsStore[idx], 
+        applicationStatus: status,
+        interviewDate: interviewDate 
+      };
     }
   },
 
@@ -254,7 +282,7 @@ export const MockDB = {
       id: `txn-${Date.now()}`,
       studentId,
       date: new Date().toISOString().split('T')[0],
-      description: description || 'Institutional Fee Settlement',
+      description: (description || 'INSTITUTIONAL FEE SETTLEMENT').toUpperCase(),
       amount: -amount,
       type: 'PAYMENT'
     };

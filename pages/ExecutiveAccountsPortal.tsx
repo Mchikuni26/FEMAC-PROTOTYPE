@@ -2,11 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   DollarSign, Users, TrendingUp, ArrowUpRight, ArrowDownRight, CreditCard, PieChart, Briefcase, FileText, Search, User as UserIcon, ChevronRight, X, MapPin, Calendar, ShieldCheck, Download, UserPlus, CheckCircle, XCircle, FileCheck, Phone, Mail, UserCheck, Clock, User as UserLarge, BellRing,
-  Send, Sparkles, CheckCircle2, ShieldAlert, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, Award, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, BarChart3, TrendingDown, Plus, Tag, MessageCircle, Headphones, Bot, MessageSquare
+  Send, Sparkles, CheckCircle2, ShieldAlert, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, Award, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, BarChart3, TrendingDown, Plus, Tag, MessageCircle, Headphones, Bot, MessageSquare, Megaphone, Upload, AlertCircle, CalendarClock, Scale, BookOpen
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { MockDB } from '../services/mockDb';
-import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession } from '../types';
+import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession, Announcement } from '../types';
 
 interface ExecutiveAccountsPortalProps {
   activePage?: string;
@@ -21,10 +21,18 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
   const [growthData, setGrowthData] = useState<{current: FinancialYearSummary, history: FinancialYearSummary[]}>(MockDB.getGrowthMetrics());
   const [expenses, setExpenses] = useState<InstitutionalExpense[]>(MockDB.getExpenses());
   const [chatSessions, setChatSessions] = useState<ChatSession[]>(MockDB.getChatSessions());
+  const [announcements, setAnnouncements] = useState<Announcement[]>(MockDB.getAnnouncements());
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [msgInput, setMsgInput] = useState('');
   
-  // Internal sub-tabs for specific domains
+  // Announcement Form State
+  const [showAnnForm, setShowAnnForm] = useState(false);
+  const [annTitle, setAnnTitle] = useState('');
+  const [annContent, setAnnContent] = useState('');
+  const [annPriority, setAnnPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL');
+  const [annImageUrl, setAnnImageUrl] = useState('');
+
+  // Internal sub-tabs
   const [financialSubTab, setFinancialSubTab] = useState<'registry' | 'notifications'>('registry');
   const [reviewTab, setReviewTab] = useState<'ledger' | 'application'>('ledger');
   const [showEnrolledNote, setShowEnrolledNote] = useState(false);
@@ -42,18 +50,25 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
     setGrowthData(MockDB.getGrowthMetrics());
     setExpenses(MockDB.getExpenses());
     setChatSessions(MockDB.getChatSessions());
+    setAnnouncements(MockDB.getAnnouncements());
   };
 
   useEffect(() => {
     refreshData();
-    // Reset search when switching main pages
     setSearchTerm('');
   }, [activePage]);
 
   const handleApplicationAction = (studentId: string, status: ApplicationStatus) => {
-    const action = status === ApplicationStatus.ACCEPTED ? "ACCEPT" : "DECLINE";
-    if (confirm(`Authorize registry to ${action} this candidate?`)) {
-      MockDB.updateStudentStatus(studentId, status);
+    let interviewDate = '';
+    if (status === ApplicationStatus.INTERVIEW) {
+      const date = prompt("Specify Physical Interview Date (Format: YYYY-MM-DD):", new Date(Date.now() + 604800000).toISOString().split('T')[0]);
+      if (!date) return;
+      interviewDate = date;
+    }
+
+    const actionText = status === ApplicationStatus.ACCEPTED ? "ACCEPT" : status === ApplicationStatus.DECLINED ? "DECLINE" : "SUBJECT TO INTERVIEW";
+    if (confirm(`Authorize registry to ${actionText} this candidate?`)) {
+      MockDB.updateStudentStatus(studentId, status, interviewDate);
       refreshData();
       if (status === ApplicationStatus.ACCEPTED) {
         setShowEnrolledNote(true);
@@ -83,6 +98,29 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
     }
   };
 
+  const handleAddAnnouncement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!annTitle || !annContent) return;
+    MockDB.addAnnouncement({
+      title: annTitle,
+      content: annContent,
+      priority: annPriority,
+      imageUrl: annImageUrl || undefined
+    });
+    setAnnTitle('');
+    setAnnContent('');
+    setAnnImageUrl('');
+    setShowAnnForm(false);
+    refreshData();
+  };
+
+  const handleDeleteAnn = (id: string) => {
+    if (confirm("Remove this announcement from the public landing page?")) {
+      MockDB.deleteAnnouncement(id);
+      refreshData();
+    }
+  };
+
   const handleRenewContract = (staffId: string) => {
     if (confirm("Execute contract renewal? This grants a 12-month active term from today.")) {
       MockDB.renewContract(staffId);
@@ -107,13 +145,11 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
     if (!expAmount || !expDescription) return;
-    
     MockDB.addExpense({
       amount: parseFloat(expAmount),
       category: expCategory,
       description: expDescription
     });
-    
     setExpAmount('');
     setExpDescription('');
     setShowExpenseForm(false);
@@ -153,8 +189,10 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
         return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-green-200">Enrolled</span>;
       case ApplicationStatus.DECLINED:
         return <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-red-200">Declined</span>;
+      case ApplicationStatus.INTERVIEW:
+        return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-blue-200">Interview Scheduled</span>;
       default:
-        return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-amber-200 animate-pulse">Pending</span>;
+        return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border border-amber-200 animate-pulse">Pending Review</span>;
     }
   };
 
@@ -177,6 +215,122 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
                  <p className="font-black uppercase tracking-tight text-sm">Pupil Fully Synchronized</p>
                  <p className="text-[10px] font-bold mt-1 opacity-90 leading-relaxed uppercase">Details propagate to all Teacher & Exam Registries instantly.</p>
               </div>
+           </div>
+        </div>
+      )}
+
+      {/* Domain: ANNOUNCEMENTS */}
+      {activePage === 'announcements' && (
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center space-x-6">
+                 <div className="p-5 bg-femac-900 text-femac-yellow rounded-[2rem] shadow-2xl">
+                    <Megaphone size={32} />
+                 </div>
+                 <div>
+                    <h3 className="text-4xl font-black text-femac-900 uppercase tracking-tighter">Public Announcements</h3>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Landing Page Content Sync Node</p>
+                 </div>
+              </div>
+              <button 
+                onClick={() => setShowAnnForm(!showAnnForm)}
+                className="bg-femac-900 text-white px-10 py-5 rounded-[2rem] font-black uppercase text-xs tracking-widest flex items-center shadow-xl hover:bg-femac-yellow hover:text-femac-900 transition-all active:scale-95"
+              >
+                <Plus size={18} className="mr-3" /> New Announcement
+              </button>
+           </div>
+
+           {showAnnForm && (
+             <div className="bg-white p-10 rounded-[3rem] border-2 border-femac-yellow/30 shadow-2xl animate-in zoom-in duration-300">
+                <div className="flex justify-between items-center mb-8">
+                   <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight flex items-center">
+                     <Megaphone size={24} className="mr-3 text-femac-yellow" /> Broadcast New Message
+                   </h4>
+                   <button onClick={() => setShowAnnForm(false)} className="text-slate-300 hover:text-femac-900"><X size={24}/></button>
+                </div>
+                <form onSubmit={handleAddAnnouncement} className="space-y-6">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Announcement Title</label>
+                         <input 
+                           required type="text" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)}
+                           placeholder="e.g., Term 3 Sports Day"
+                           className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 focus:border-femac-yellow transition-all"
+                         />
+                      </div>
+                      <div className="space-y-2">
+                         <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Priority Node</label>
+                         <select 
+                           value={annPriority} onChange={(e) => setAnnPriority(e.target.value as any)}
+                           className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-femac-900 uppercase focus:border-femac-yellow transition-all appearance-none"
+                         >
+                            <option value="NORMAL">Normal Priority</option>
+                            <option value="URGENT">Urgent Alert</option>
+                         </select>
+                      </div>
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Announcement Body</label>
+                      <textarea 
+                        required rows={4} value={annContent} onChange={(e) => setAnnContent(e.target.value)}
+                        placeholder="Detail the announcement content here..."
+                        className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] outline-none font-medium text-slate-700 focus:border-femac-yellow transition-all resize-none"
+                      />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Image Reference URL (Optional)</label>
+                      <div className="relative">
+                        <Upload className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                        <input 
+                          type="text" value={annImageUrl} onChange={(e) => setAnnImageUrl(e.target.value)}
+                          placeholder="https://images.unsplash.com/..."
+                          className="w-full pl-14 pr-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700 focus:border-femac-yellow transition-all text-sm"
+                        />
+                      </div>
+                   </div>
+                   <button type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-lg hover:bg-green-600 transition-all shadow-xl">
+                      Synchronize with Landing Page
+                   </button>
+                </form>
+             </div>
+           )}
+
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {announcements.map(ann => (
+                 <div key={ann.id} className={`bg-white rounded-[2.5rem] border overflow-hidden shadow-sm flex flex-col group transition-all hover:shadow-xl ${ann.priority === 'URGENT' ? 'border-red-100' : 'border-slate-100'}`}>
+                    {ann.imageUrl && (
+                       <div className="h-48 overflow-hidden">
+                          <img src={ann.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="" />
+                       </div>
+                    )}
+                    <div className="p-8 flex-1 flex flex-col">
+                       <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-3">
+                             <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${ann.priority === 'URGENT' ? 'bg-red-100 text-red-600' : 'bg-femac-50 text-femac-900'}`}>
+                                {ann.priority}
+                             </span>
+                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{ann.date}</span>
+                          </div>
+                          <button onClick={() => handleDeleteAnn(ann.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                             <Trash2 size={16} />
+                          </button>
+                       </div>
+                       <h4 className="text-xl font-black text-femac-900 uppercase tracking-tight mb-2">{ann.title}</h4>
+                       <p className="text-xs text-slate-500 font-medium leading-relaxed flex-1">{ann.content}</p>
+                       <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between text-[8px] font-black uppercase tracking-widest text-slate-300">
+                          <span>Verified Registry Sync Node</span>
+                          <span className="flex items-center"><CheckCircle size={10} className="mr-1 text-green-500" /> Active on Website</span>
+                       </div>
+                    </div>
+                 </div>
+              ))}
+              {announcements.length === 0 && (
+                <div className="col-span-2 py-32 bg-white rounded-[4rem] border-4 border-dashed border-slate-100 text-center flex flex-col items-center justify-center">
+                   <Megaphone size={64} className="text-slate-100 mb-6" />
+                   <h4 className="text-2xl font-black text-slate-300 uppercase tracking-tighter">No Active Broadcasts</h4>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Initialize an announcement to reflect on the public landing page slideshow</p>
+                </div>
+              )}
            </div>
         </div>
       )}
@@ -938,31 +1092,109 @@ export const ExecutiveAccountsPortal: React.FC<ExecutiveAccountsPortalProps> = (
                     </div>
                  </div>
                ) : (
-                 <div className="animate-in fade-in slide-in-from-left-4 h-full flex flex-col">
-                    <h5 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-10">Registry Application File Review</h5>
-                    <div className="grid grid-cols-2 gap-12">
-                       <div className="space-y-6">
-                          <div className="pb-3 border-b-2 border-femac-yellow/20 font-black text-lg text-femac-900 uppercase tracking-tighter">Identity Registry</div>
-                          <div className="grid grid-cols-2 gap-4 text-xs">
-                             <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">First Name</p><p className="font-bold">{selectedStudent.firstName}</p></div>
-                             <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Last Name</p><p className="font-bold">{selectedStudent.lastName}</p></div>
-                             <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Grade Level</p><p className="font-bold">GRADE {selectedStudent.grade}</p></div>
-                             <div><p className="text-[9px] font-black uppercase text-slate-400 mb-1">Registry Lock</p><p className="font-bold">{selectedStudent.resultsUnlocked ? 'VERIFIED' : 'LOCKED'}</p></div>
+                 <div className="animate-in fade-in slide-in-from-left-4 h-full flex flex-col pb-10">
+                    <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+                       <h5 className="text-xl font-black uppercase tracking-tighter text-femac-900 flex items-center">
+                         <FileText size={24} className="mr-3 text-femac-yellow" /> Candidate Application File
+                       </h5>
+                       <div className="flex items-center space-x-3">
+                          <span className="text-[10px] font-black uppercase text-slate-400">Submission Node:</span>
+                          <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase">{selectedStudent.submissionDate || 'Live Data'}</span>
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                       <div className="space-y-8">
+                          {/* ACADEMIC PROFILE */}
+                          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                             <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-femac-900 mb-6 flex items-center border-b border-slate-50 pb-3">
+                                <BookOpen size={16} className="mr-2 text-femac-yellow" /> Academic Identity Profile
+                             </h6>
+                             <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">First Name</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.firstName}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Surname</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.lastName}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Grade Level</p><p className="font-bold text-sm text-slate-700 uppercase">GRADE {selectedStudent.grade}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Gender</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.gender || 'Not Logged'}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Date of Birth</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.dob || 'Not Logged'}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Previous School</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.previousSchool || 'None Recorded'}</p></div>
+                             </div>
+                          </div>
+
+                          {/* GUARDIAN REGISTRY */}
+                          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                             <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-femac-900 mb-6 flex items-center border-b border-slate-50 pb-3">
+                                <ShieldCheck size={16} className="mr-2 text-femac-yellow" /> Guardian / Parent Registry
+                             </h6>
+                             <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+                                <div className="col-span-2"><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Guardian Name</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.guardianName || 'Registry Blank'}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">NRC / Identity</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.parentNrc || 'Registry Blank'}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Relationship</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.relationship || 'Registry Blank'}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Phone Line</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.phone || 'Registry Blank'}</p></div>
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Email Node</p><p className="font-bold text-xs text-slate-700 lowercase">{selectedStudent.email || 'Registry Blank'}</p></div>
+                                <div className="col-span-2"><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Occupation</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.occupation || 'Registry Blank'}</p></div>
+                             </div>
                           </div>
                        </div>
-                       <div className="p-8 bg-femac-900 rounded-[2.5rem] text-white shadow-2xl relative">
-                          <h6 className="text-[10px] font-black uppercase tracking-[0.3em] text-femac-yellow mb-4">Admissions Authorisation</h6>
-                          <div className="flex flex-col gap-4">
-                             {selectedStudent.applicationStatus === ApplicationStatus.PENDING ? (
-                                <>
-                                   <button onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.ACCEPTED)} className="w-full py-4 bg-femac-yellow text-femac-900 rounded-xl font-black uppercase tracking-widest text-[10px]">Authorise Enrollment</button>
-                                   <button onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.DECLINED)} className="w-full py-4 bg-white/10 text-white rounded-xl font-black uppercase tracking-widest text-[10px]">Decline Admission</button>
-                                </>
-                             ) : (
-                                <div className="text-center py-6 border border-white/10 rounded-xl bg-white/5">
-                                   <p className="text-[10px] font-black uppercase tracking-widest text-femac-yellow">Registry Session Finalized</p>
+
+                       <div className="space-y-8">
+                          {/* CONTACT & EMERGENCY */}
+                          <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                             <h6 className="text-[10px] font-black uppercase tracking-[0.2em] text-femac-900 mb-6 flex items-center border-b border-slate-50 pb-3">
+                                <MapPin size={16} className="mr-2 text-femac-yellow" /> Contact & Emergency Node
+                             </h6>
+                             <div className="space-y-6">
+                                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Residential Address</p><p className="font-bold text-sm text-slate-700 uppercase leading-relaxed">{selectedStudent.address || 'Registry Blank'}</p></div>
+                                <div className="grid grid-cols-2 gap-4">
+                                   <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Emergency Contact</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.emergencyName || 'Registry Blank'}</p></div>
+                                   <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Emergency Phone</p><p className="font-bold text-sm text-slate-700 uppercase">{selectedStudent.emergencyPhone || 'Registry Blank'}</p></div>
                                 </div>
-                             )}
+                             </div>
+                          </div>
+
+                          {/* ACTION PANEL */}
+                          <div className="bg-femac-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-center">
+                             <div className="absolute top-0 right-0 w-32 h-32 bg-femac-yellow opacity-10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                             <h6 className="text-xl font-black uppercase tracking-tighter mb-8 flex items-center">
+                                <Scale size={24} className="mr-3 text-femac-yellow" /> Final Executive Determination
+                             </h6>
+                             
+                             <div className="space-y-4">
+                                {(selectedStudent.applicationStatus === ApplicationStatus.PENDING || selectedStudent.applicationStatus === ApplicationStatus.INTERVIEW) ? (
+                                  <>
+                                     <button 
+                                       onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.ACCEPTED)} 
+                                       className="w-full py-5 bg-femac-yellow text-femac-900 rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center hover:bg-white transition-all transform active:scale-95 shadow-xl"
+                                     >
+                                        <CheckCircle size={20} className="mr-3"/> Authorise Official Enrollment
+                                     </button>
+                                     <button 
+                                       onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.INTERVIEW)} 
+                                       className="w-full py-5 bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center hover:bg-blue-400 transition-all transform active:scale-95 shadow-xl"
+                                     >
+                                        <CalendarClock size={20} className="mr-3"/> Subject to Physical Interview
+                                     </button>
+                                     <button 
+                                       onClick={() => handleApplicationAction(selectedStudent.id, ApplicationStatus.DECLINED)} 
+                                       className="w-full py-5 bg-red-600/20 text-red-400 border-2 border-red-600/30 rounded-2xl font-black uppercase tracking-widest text-[11px] flex items-center justify-center hover:bg-red-600 hover:text-white transition-all transform active:scale-95"
+                                     >
+                                        <XCircle size={20} className="mr-3"/> Decline & Reject Admission
+                                     </button>
+                                  </>
+                                ) : (
+                                  <div className="text-center py-12 border-2 border-dashed border-white/20 rounded-[2rem] bg-white/5">
+                                     <p className="text-xs font-black uppercase tracking-widest text-femac-yellow mb-2">Determination Synchronized</p>
+                                     <p className="text-[10px] font-bold text-white/50 uppercase">Current Status: {selectedStudent.applicationStatus}</p>
+                                     <button onClick={() => MockDB.updateStudentStatus(selectedStudent.id, ApplicationStatus.PENDING)} className="mt-6 text-[8px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-colors">Reset Application to Pending Review</button>
+                                  </div>
+                                )}
+                             </div>
+
+                             <div className="mt-10 p-6 bg-white/5 rounded-2xl border border-white/10 flex items-start space-x-4">
+                                <AlertCircle size={20} className="text-femac-yellow shrink-0 mt-1" />
+                                <p className="text-[9px] font-bold text-white/60 uppercase leading-relaxed tracking-wide">
+                                   Legal Notice: Determination here instantly propagates to the candidate's tracking dashboard. Acceptance generates an official digital registry token.
+                                </p>
+                             </div>
                           </div>
                        </div>
                     </div>

@@ -18,7 +18,8 @@ export enum GradeStatus {
 export enum ApplicationStatus {
   PENDING = 'PENDING',
   ACCEPTED = 'ACCEPTED',
-  DECLINED = 'DECLINED'
+  DECLINED = 'DECLINED',
+  INTERVIEW = 'INTERVIEW'
 }
 
 export interface User {
@@ -77,6 +78,7 @@ export interface Student {
   emergencyName?: string;
   emergencyPhone?: string;
   submissionDate?: string;
+  interviewDate?: string;
 }
 
 export interface FinancialYearSummary {
@@ -187,4 +189,13 @@ export interface PaymentNotification {
   status: 'PENDING' | 'VERIFIED';
   timestamp: string;
   details: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  imageUrl?: string;
+  priority: 'NORMAL' | 'URGENT';
 }

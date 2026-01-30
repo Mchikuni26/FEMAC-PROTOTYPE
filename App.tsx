@@ -1,24 +1,23 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { User, UserRole, ApplicationStatus, Announcement, SchoolSettings } from './types';
-import { MOCK_USERS } from './constants';
-import { MockDB } from './services/mockDb';
-import { Layout } from './components/Layout';
-import { TeacherPortal } from './pages/TeacherPortal';
-import { ExamsPortal } from './pages/ExamsPortal';
-import { ParentPortal } from './pages/ParentPortal';
-import { StudentPortal } from './pages/StudentPortal';
-import { ExecutiveAccountsPortal } from './pages/ExecutiveAccountsPortal';
+import { User, UserRole, ApplicationStatus, Announcement, SchoolSettings } from './types.ts';
+import { MOCK_USERS } from './constants.ts';
+import { MockDB } from './services/mockDb.ts';
+import { Layout } from './components/Layout.tsx';
+import { TeacherPortal } from './pages/TeacherPortal.tsx';
+import { ExamsPortal } from './pages/ExamsPortal.tsx';
+import { ParentPortal } from './pages/ParentPortal.tsx';
+import { StudentPortal } from './pages/StudentPortal.tsx';
+import { ExecutiveAccountsPortal } from './pages/ExecutiveAccountsPortal.tsx';
 import { 
   Key, ChevronRight, Award, Zap, Laptop, Bus, Trophy, Users, X, 
   DollarSign, FileText, ShieldCheck, ClipboardList, Info, Target, 
   Eye, EyeOff, ArrowLeft, CheckCircle2, AlertCircle, BookOpen, GraduationCap, 
   Microscope, Languages, Calculator, FlaskConical, Globe2,
   FileEdit, UserPlus, CreditCard, Smartphone, Landmark, Copy,
-  User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload, Download,
+  User as UserIcon, Calendar, School, Phone, Mail, MapPin, Upload, Download, UploadCloud,
   Home, Lock, MessageCircle, Facebook, Hash, Map, UserCheck, Search, SearchCode,
   CheckCircle, XCircle, Clock, FileCheck, Briefcase, IdCard, Star, Timer, ShieldAlert,
-  ChevronLeft, Megaphone, CalendarClock, RotateCw, Volume2, VolumeX, Loader2, Send, Cpu
+  ChevronLeft, Megaphone, CalendarClock, RotateCw, Volume2, VolumeX, Loader2, Send, Cpu, Database
 } from 'lucide-react';
 
 const getRoleDisplayLabel = (role: UserRole) => {
@@ -116,7 +115,7 @@ const App: React.FC = () => {
   const [showAdmissionModal, setShowAdmissionModal] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [activeAdmissionTab, setActiveAdmissionTab] = useState<'fees' | 'form' | 'tracker' | 'policy'>('fees');
-  const [transmissionStep, setTransmissionStep] = useState<'IDLE' | 'ENCRYPTING' | 'TRANSMITTING' | 'FINALIZING'>('IDLE');
+  const [transmissionStep, setTransmissionStep] = useState<'IDLE' | 'ENCRYPTING' | 'GENERATING_CERT' | 'TRANSMITTING' | 'FINALIZING'>('IDLE');
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [lastSubmissionId, setLastSubmissionId] = useState<string | null>(null);
 
@@ -226,12 +225,10 @@ const App: React.FC = () => {
     e.preventDefault();
     setTransmissionStep('ENCRYPTING');
     
-    // Simulate high-fidelity technical sequence
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 800));
+    setTransmissionStep('GENERATING_CERT');
+    await new Promise(r => setTimeout(r, 1200));
     setTransmissionStep('TRANSMITTING');
-    await new Promise(r => setTimeout(r, 2500));
-    setTransmissionStep('FINALIZING');
-    await new Promise(r => setTimeout(r, 1000));
 
     try {
         const newStudent = await MockDB.createStudent({
@@ -252,6 +249,11 @@ const App: React.FC = () => {
             emergencyPhone: formEmergencyPhone,
             parentId: 'U-PAR-PROSPECT'
         });
+        
+        await new Promise(r => setTimeout(r, 1500));
+        setTransmissionStep('FINALIZING');
+        await new Promise(r => setTimeout(r, 800));
+
         setLastSubmissionId(newStudent.id);
         setFormSubmitted(true);
         // Clear fields
@@ -458,19 +460,24 @@ const App: React.FC = () => {
                         <div className="absolute inset-0 border-4 border-femac-yellow/20 rounded-full"></div>
                         <div className={`absolute inset-0 border-t-4 border-femac-yellow rounded-full animate-spin`}></div>
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <Cpu size={40} className="text-femac-yellow animate-pulse" />
+                          {transmissionStep === 'TRANSMITTING' ? <UploadCloud size={40} className="text-femac-yellow animate-bounce" /> : <Cpu size={40} className="text-femac-yellow animate-pulse" />}
                         </div>
                       </div>
                       <div>
                           <h4 className="text-3xl font-black tracking-tighter uppercase mb-2">Secure Link</h4>
                           <p className="text-femac-400 font-black uppercase text-[10px] tracking-[0.3em]">
                             {transmissionStep === 'ENCRYPTING' && 'Encrypting Application Node...'}
-                            {transmissionStep === 'TRANSMITTING' && 'Uploading to Executive Registry...'}
-                            {transmissionStep === 'FINALIZING' && 'Verifying Data Integrity...'}
+                            {transmissionStep === 'GENERATING_CERT' && 'Generating Virtual Registry File...'}
+                            {transmissionStep === 'TRANSMITTING' && 'Uploading instantly to Executive Node...'}
+                            {transmissionStep === 'FINALIZING' && 'Verifying Integrity & Syncing...'}
                           </p>
                       </div>
                       <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                        <div className={`h-full bg-femac-yellow transition-all duration-[4s] ease-out ${transmissionStep === 'ENCRYPTING' ? 'w-1/3' : transmissionStep === 'TRANSMITTING' ? 'w-2/3' : 'w-full'}`}></div>
+                        <div className={`h-full bg-femac-yellow transition-all duration-[1s] ease-out ${transmissionStep === 'ENCRYPTING' ? 'w-1/5' : transmissionStep === 'GENERATING_CERT' ? 'w-2/5' : transmissionStep === 'TRANSMITTING' ? 'w-4/5' : 'w-full'}`}></div>
+                      </div>
+                      <div className="flex items-center justify-center space-x-3 text-femac-300">
+                         <Database size={14} />
+                         <span className="text-[8px] font-black uppercase tracking-widest">Authorized Supabase Encrypted Channel</span>
                       </div>
                   </div>
               </div>
@@ -557,7 +564,7 @@ const App: React.FC = () => {
                         <div className="flex flex-col items-center justify-center py-20 text-center">
                           <div className="w-24 h-24 bg-green-50 text-green-600 rounded-[2.5rem] flex items-center justify-center mb-8 shadow-xl border-2 border-green-100"><CheckCircle2 size={56} /></div>
                           <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-4">Application Synchronized</h5>
-                          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-12 max-w-sm mx-auto">Your request is now in the Executive Review node. Use your Registry ID to track progress.</p>
+                          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mb-12 max-w-sm mx-auto">Your file was transmitted instantly to the Executive Review node. Use your Registry ID to track progress.</p>
                           <div className="bg-slate-900 p-8 rounded-[2rem] text-white w-full max-w-sm mb-12">
                             <p className="text-[9px] font-black text-femac-yellow uppercase tracking-[0.4em] mb-2">Assigned Registry ID</p>
                             <p className="text-4xl font-black tracking-tighter">{lastSubmissionId}</p>
@@ -656,7 +663,7 @@ const App: React.FC = () => {
 
                             <button disabled={transmissionStep !== 'IDLE'} type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.3em] text-lg shadow-2xl hover:bg-femac-yellow hover:text-femac-900 transition-all flex items-center justify-center space-x-4 active:scale-[0.98]">
                               {transmissionStep !== 'IDLE' ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
-                              <span>Transmit to Executive Portal</span>
+                              <span>Transmit Instantly to Executive Portal</span>
                             </button>
                           </form>
                         </>

@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { MOCK_STUDENTS, MOCK_ASSIGNMENTS } from '../constants';
-import { MockDB } from '../services/mockDb';
-import { GradeRecord, GradeStatus, FeeTransaction, Student, ChatSession, UserRole } from '../types';
+import { MOCK_STUDENTS, MOCK_ASSIGNMENTS } from '../constants.ts';
+import { MockDB } from '../services/mockDb.ts';
+import { GradeRecord, GradeStatus, FeeTransaction, Student, ChatSession, UserRole } from '../types.ts';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { 
   DollarSign, Download, AlertTriangle, CreditCard, X, Calendar, FileText, 
@@ -23,7 +22,6 @@ const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ p
   const [session, setSession] = useState<ChatSession | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fix: Handling asynchronous session fetch in useEffect
   useEffect(() => {
     const loadSession = async () => {
       const sess = await MockDB.getChatSessionByParent(parentId, parentName);
@@ -46,7 +44,6 @@ const FloatingChatBot: React.FC<{ parentId: string; parentName: string }> = ({ p
 
     const userMsg = input.trim();
     setInput('');
-    // Fix: Await sendMessage and reload session for immediate feedback
     await MockDB.sendMessage(session.id, parentId, UserRole.PARENT, userMsg);
     const updatedSession = await MockDB.getChatSessionByParent(parentId, parentName);
     setSession(updatedSession);
@@ -176,17 +173,14 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [notificationSent, setNotificationSent] = useState(false);
   
-  // Fix: Move async derived values to state
   const [activeStudent, setActiveStudent] = useState<Student>(parentStudents[0] || MOCK_STUDENTS[0]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
 
-  // Custom Payment State
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentDescription, setPaymentDescription] = useState<string>('');
   
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Fix: Unified asynchronous data refresh method
   const refreshRegistryData = async () => {
     const [currentFees, studentGrades, studentData, totalStudents] = await Promise.all([
       MockDB.getFeesByStudent(activeStudentId),
@@ -196,7 +190,6 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
     ]);
     
     setFees(currentFees);
-    // StudentGrades from MockDB.getGradesByStudent is already filtered by status 'PUBLISHED'
     setGrades(studentGrades as GradeRecord[]);
     if (studentData) {
       setActiveStudent(studentData);
@@ -220,7 +213,6 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
 
   const balance = fees.reduce((acc, curr) => acc + curr.amount, 0);
   const isBalancePending = balance > 0;
-  // Results are locked if balance is pending OR if executive hasn't verified the payment
   const isLockedForResults = isBalancePending || !activeStudent.resultsUnlocked;
 
   const handleOpenPayment = (type: 'settle' | 'new') => {
@@ -239,7 +231,6 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   const handlePayment = async () => {
     if (!paymentAmount || parseFloat(paymentAmount) <= 0) return;
     setIsProcessing(true);
-    // Fix: Using async/await for mock database updates
     await new Promise(resolve => setTimeout(resolve, 2000));
     await MockDB.makePayment(activeStudentId, parseFloat(paymentAmount), paymentDescription);
     await refreshRegistryData();
@@ -250,7 +241,6 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
   const handleSendNotification = async () => {
     setIsProcessing(true);
     await new Promise(resolve => setTimeout(resolve, 1500));
-    // Fix: MockDB now correctly implements sendPaymentNotification
     await MockDB.sendPaymentNotification({
         studentId: activeStudentId,
         amount: parseFloat(paymentAmount),
@@ -261,7 +251,6 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
     setNotificationSent(true);
   };
 
-  // Fix: Using allStudents state to prevent Promise filter errors
   const searchResults = (searchTerm.trim() === '' || searchGrade === '') 
     ? [] 
     : allStudents.filter(s => 
@@ -529,7 +518,6 @@ export const ParentPortal: React.FC<ParentPortalProps> = ({ activePage }) => {
                              </select>
                              <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 rotate-90 text-slate-300 pointer-events-none" size={16} />
                           </div>
-                          {/* Manual Text Option */}
                           <div className="mt-3 relative">
                             <input 
                                 type="text"

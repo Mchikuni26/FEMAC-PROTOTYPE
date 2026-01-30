@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
-import { MOCK_CLASSES } from '../constants';
-import { MockDB } from '../services/mockDb';
-import { GradeStatus, StudentReport, AssessmentType, Student } from '../types';
+import { MOCK_CLASSES } from '../constants.ts';
+import { MockDB } from '../services/mockDb.ts';
+import { GradeStatus, StudentReport, AssessmentType, Student } from '../types.ts';
 import { 
   CheckCircle, XCircle, Globe, Filter, ExternalLink, Eye, 
   ChevronDown, ShieldCheck, Calendar, FileText, AlertCircle, 

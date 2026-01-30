@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { User, UserRole, SchoolSettings, ApplicationStatus } from '../types';
-import { MockDB } from '../services/mockDb';
+import { User, UserRole, SchoolSettings, ApplicationStatus } from '../types.ts';
+import { MockDB } from '../services/mockDb.ts';
 import { 
   LayoutDashboard, BookOpen, GraduationCap, Users, DollarSign, Menu, X, LogOut, 
   CheckCircle, TrendingUp, Briefcase, Mail, Phone, MessageCircle, Facebook, User as UserIcon,

@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { 
   Clock, FileText, Calendar, Download, ChevronRight, BookOpen, 
   MapPin, User, Star, DownloadCloud, AlertCircle, Coffee, Utensils,
   Book, FileCheck, Info, Sparkles, GraduationCap, Printer, Layout
 } from 'lucide-react';
-import { TIMETABLE_SCHEDULE, MOCK_MATERIALS } from '../constants';
+import { TIMETABLE_SCHEDULE, MOCK_MATERIALS } from '../constants.ts';
 
 export const StudentPortal: React.FC = () => {
     const [selectedGrade, setSelectedGrade] = useState(9);
@@ -14,11 +13,9 @@ export const StudentPortal: React.FC = () => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const grades = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-    // Grade-specific subject mapping logic
     const getGradeSpecificSubject = (baseSubject: string, grade: number) => {
         if (baseSubject === '' || !baseSubject) return null;
 
-        // Primary (1-7)
         if (grade <= 7) {
             const primaryMap: Record<string, string> = {
                 'Mathematics': 'Numeracy & Shapes',
@@ -33,7 +30,6 @@ export const StudentPortal: React.FC = () => {
             };
             return primaryMap[baseSubject] || baseSubject;
         } 
-        // Junior (8-9)
         else if (grade <= 9) {
             const juniorMap: Record<string, string> = {
                 'Science': 'Integrated Science',
@@ -43,7 +39,6 @@ export const StudentPortal: React.FC = () => {
             };
             return juniorMap[baseSubject] || baseSubject;
         }
-        // Senior (10-12)
         else {
             const seniorMap: Record<string, string> = {
                 'Science': 'Pure Physics',
@@ -68,7 +63,6 @@ export const StudentPortal: React.FC = () => {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-            {/* Header / Welcome Section */}
             <div className="bg-femac-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="absolute -top-10 -left-10 w-40 h-40 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
                 <div className="flex items-center space-x-6 relative z-10">
@@ -103,7 +97,6 @@ export const StudentPortal: React.FC = () => {
 
             {activeTab === 'timetable' ? (
                 <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-                    {/* Unified Registry Controls */}
                     <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="flex items-center space-x-4">
                             <div className="p-3 bg-femac-900 rounded-xl text-femac-yellow">
@@ -133,7 +126,6 @@ export const StudentPortal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Weekly Schedule Matrix */}
                     <div className="bg-white rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
@@ -204,10 +196,8 @@ export const StudentPortal: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                /* Materials Hub */
                 <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Summary Info */}
                         <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
                             <h3 className="text-2xl font-black text-femac-900 uppercase tracking-tight mb-6 flex items-center">
                                 <DownloadCloud className="mr-3 text-femac-yellow" /> Materials Hub
@@ -227,7 +217,6 @@ export const StudentPortal: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Quick Guidelines Card */}
                         <div className="bg-femac-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-femac-yellow opacity-10 blur-3xl group-hover:scale-150 transition-transform"></div>
                             <h4 className="text-xl font-black uppercase tracking-tight mb-4 flex items-center">
@@ -242,7 +231,6 @@ export const StudentPortal: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Resource List */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {MOCK_MATERIALS.map(material => (
                             <div key={material.id} className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:border-femac-yellow transition-all flex items-center justify-between group">
@@ -268,7 +256,6 @@ export const StudentPortal: React.FC = () => {
                 </div>
             )}
 
-            {/* Support Footer */}
             <div className="bg-slate-100 p-10 rounded-[3rem] border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="flex items-center space-x-5">
                     <div className="bg-white p-4 rounded-2xl shadow-sm text-femac-900"><GraduationCap size={32} /></div>

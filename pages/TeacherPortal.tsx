@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
-import { MOCK_CLASSES } from '../constants';
-import { MockDB } from '../services/mockDb';
+import { MOCK_CLASSES } from '../constants.ts';
+import { MockDB } from '../services/mockDb.ts';
 import { 
   GradeStatus, User, Student, SubjectPerformance, 
   StudentReport, AssessmentType, ApplicationStatus 
-} from '../types';
+} from '../types.ts';
 import { 
   Lock, Search, User as UserIcon, ChevronRight, 
   FileText, CheckCircle, ClipboardCheck, Target, 

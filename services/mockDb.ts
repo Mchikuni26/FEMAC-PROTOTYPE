@@ -1,11 +1,10 @@
-
-import { supabase } from '../supabase';
+import { supabase } from '../supabase.ts';
 import { 
   GradeRecord, GradeStatus, Assignment, FeeTransaction, 
   Student, ApplicationStatus, PaymentNotification, AssessmentType,
   StudentReport, SubjectPerformance, StaffMember, FinancialYearSummary, InstitutionalExpense,
   ChatSession, ChatMessage, UserRole, Announcement, SchoolSettings 
-} from '../types';
+} from '../types.ts';
 
 export const MockDB = {
   // Announcements

@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  DollarSign, Users, TrendingUp, ArrowUpRight, CreditCard, Briefcase, FileText, Search, User as UserIcon, ChevronRight, X, MapPin, ShieldCheck, Download, CheckCircle, XCircle, FileCheck, User as UserLarge, BellRing, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, Plus, Tag, MessageCircle, Headphones, MessageSquare, Megaphone, Upload, AlertCircle, CalendarClock, Scale, BookOpen, UserPlus, GraduationCap, Loader2, Send, Image as ImageIcon, BarChart3, PieChart, Wallet2, ShoppingBag, BriefcaseBusiness, UserCheck2, Timer, Bot, User, Calculator, Filter, Settings, Mail, Phone, LayoutGrid, Zap, FileEdit, Headset, MessageCircleQuestion, Check, ArrowDownRight, Activity, Trophy, FileSearch, UserX, Clock
+  DollarSign, Users, TrendingUp, ArrowUpRight, CreditCard, Briefcase, FileText, Search, User as UserIcon, ChevronRight, X, MapPin, ShieldCheck, Download, CheckCircle, XCircle, FileCheck, User as UserLarge, BellRing, Smartphone, Landmark, Info, Lock, Receipt, History, Wallet, BadgeCheck, UserCog, Power, RotateCw, Trash2, LineChart as ChartIcon, Plus, Tag, MessageCircle, Headphones, MessageSquare, Megaphone, Upload, AlertCircle, CalendarClock, Scale, BookOpen, UserPlus, GraduationCap, Loader2, Send, Image as ImageIcon, BarChart3, PieChart, Wallet2, ShoppingBag, BriefcaseBusiness, UserCheck2, Timer, Bot, User, Calculator, Filter, Settings, Mail, Phone, LayoutGrid, Zap, FileEdit, Headset, MessageCircleQuestion, Check, ArrowDownRight, Activity, Trophy, FileSearch, UserX, Clock, Bell
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Cell, AreaChart, Area } from 'recharts';
-import { MockDB } from '../services/mockDb';
-import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession, Announcement, Student, ChatMessage, FeeTransaction, SchoolSettings } from '../types';
+import { MockDB } from '../services/mockDb.ts';
+import { supabase } from '../supabase.ts';
+import { ApplicationStatus, PaymentNotification, UserRole, StaffMember, FinancialYearSummary, InstitutionalExpense, ChatSession, Announcement, Student, ChatMessage, FeeTransaction, SchoolSettings } from '../types.ts';
 
 export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ activePage = 'financials' }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,12 +27,12 @@ export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ act
   const [showAnnModal, setShowAnnModal] = useState(false);
   const [activeGrowthTab, setActiveGrowthTab] = useState<'profit' | 'expenses' | 'net'>('profit');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  
+  const [realtimeToast, setRealtimeToast] = useState<{title: string, msg: string} | null>(null);
 
-  // Admission Review States
   const [selectedApplication, setSelectedApplication] = useState<Student | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // New Announcement Form State
   const [newAnnTitle, setNewAnnTitle] = useState('');
   const [newAnnContent, setNewAnnContent] = useState('');
   const [newAnnImage, setNewAnnImage] = useState('');
@@ -63,9 +63,24 @@ export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ act
 
   useEffect(() => {
     refreshData();
-    // Maintain 'Communication Channel' with background polling
-    const interval = setInterval(() => { refreshData(true); }, 10000);
-    return () => clearInterval(interval);
+
+    const studentChannel = supabase.channel('registry-changes')
+      .on('postgres_changes', { event: 'INSERT', table: 'students', schema: 'public' }, (payload) => {
+        const newStudent = payload.new as Student;
+        setRealtimeToast({
+          title: 'NEW ADMISSION FILE',
+          msg: `Transmission received from ${newStudent.firstName} ${newStudent.lastName}`
+        });
+        refreshData(true);
+        setTimeout(() => setRealtimeToast(null), 5000);
+      })
+      .subscribe();
+
+    const interval = setInterval(() => { refreshData(true); }, 15000);
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(studentChannel);
+    };
   }, []);
 
   useEffect(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, [activeChatId, chatSessions]);
@@ -166,7 +181,6 @@ export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ act
 
   const pendingApplications = students.filter(s => s.applicationStatus !== ApplicationStatus.ACCEPTED && s.applicationStatus !== ApplicationStatus.DECLINED);
 
-  // Unified Chronological Activity Feed
   const combinedActivity = [
     ...students.filter(s => s.applicationStatus === ApplicationStatus.PENDING).map(s => ({
         type: 'ADMISSION',
@@ -215,7 +229,20 @@ export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ act
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20 relative">
+      {realtimeToast && (
+        <div className="fixed top-10 right-10 z-[200] bg-femac-900 border-2 border-femac-yellow text-white p-6 rounded-[2rem] shadow-[0_30px_60px_-12px_rgba(0,0,0,0.5)] animate-in slide-in-from-right-10 duration-500 flex items-center gap-6">
+           <div className="w-12 h-12 bg-femac-yellow text-femac-900 rounded-2xl flex items-center justify-center animate-bounce">
+              <Bell size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-femac-yellow mb-1">{realtimeToast.title}</p>
+              <p className="text-xs font-bold">{realtimeToast.msg}</p>
+           </div>
+           <button onClick={() => setRealtimeToast(null)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400"><X size={16}/></button>
+        </div>
+      )}
+
       <div className="bg-femac-900 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden text-white flex flex-col md:flex-row items-center justify-between gap-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-femac-yellow opacity-5 blur-[100px]"></div>
         <div className="flex items-center space-x-6 relative z-10">
@@ -236,7 +263,7 @@ export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ act
               </div>
            )}
            {pendingApplications.filter(s => s.applicationStatus === ApplicationStatus.PENDING).length > 0 && (
-              <div className="bg-amber-500 text-femac-900 px-6 py-3 rounded-2xl flex items-center shadow-xl border-2 border-femac-900/10 animate-in slide-in-from-top-4">
+              <div className="bg-amber-50 text-femac-900 px-6 py-3 rounded-2xl flex items-center shadow-xl border-2 border-femac-900/10 animate-in slide-in-from-top-4">
                 <UserPlus size={16} className="mr-2" />
                 <span className="text-[10px] font-black uppercase tracking-widest">
                   {pendingApplications.filter(s => s.applicationStatus === ApplicationStatus.PENDING).length} New Request
@@ -452,423 +479,4 @@ export const ExecutiveAccountsPortal: React.FC<{ activePage?: string }> = ({ act
                     </div>
                  </>
               ) : (
-                 <div className="flex-1 flex flex-col items-center justify-center text-center p-20 text-slate-300">
-                    <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
-                       <FileSearch size={48} className="opacity-20" />
-                    </div>
-                    <h4 className="text-3xl font-black text-femac-900/10 uppercase tracking-tighter">Select a Candidate for Registry Review</h4>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-4">Authorized Executive Admission Terminal</p>
-                 </div>
-              )}
-           </div>
-        </div>
-      )}
-
-      {activePage === 'growth' && growthData && (
-        <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
-           {/* Summary Cards */}
-           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center"><Activity size={12} className="mr-2 text-femac-yellow" /> Annual Revenue</p>
-                 <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.totalRevenue.toLocaleString()}</h4>
-                 <div className="mt-4 flex items-center text-[10px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full w-fit border border-green-100 uppercase tracking-widest"><ArrowUpRight size={10} className="mr-1" /> Verified Flow</div>
-              </div>
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center"><TrendingUp size={12} className="mr-2 text-blue-500" /> Gross Margin</p>
-                 <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.grossProfit.toLocaleString()}</h4>
-                 <div className="mt-4 flex items-center text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full w-fit border border-blue-100 uppercase tracking-widest"><TrendingUp size={10} className="mr-1" /> Op Efficiency</div>
-              </div>
-              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center"><ArrowDownRight size={12} className="mr-2 text-red-500" /> Total Expenses</p>
-                 <h4 className="text-3xl font-black text-femac-900 tracking-tighter">K {growthData.current.totalExpenses.toLocaleString()}</h4>
-                 <div className="mt-4 flex items-center text-[10px] font-black text-red-600 bg-red-50 px-3 py-1 rounded-full w-fit border border-red-100 uppercase tracking-widest">Salaries & Ops</div>
-              </div>
-              <div className="bg-femac-900 p-8 rounded-[2.5rem] shadow-xl text-white">
-                 <p className="text-[9px] font-black text-femac-400 uppercase tracking-widest mb-2">Net Registry Profit</p>
-                 <h4 className="text-3xl font-black text-femac-yellow tracking-tighter">K {growthData.current.netProfit.toLocaleString()}</h4>
-                 <div className="mt-4 flex items-center text-[10px] font-black text-femac-900 bg-femac-yellow px-3 py-1 rounded-full w-fit uppercase tracking-widest">Yearly Retained</div>
-              </div>
-           </div>
-
-           {/* Main Growth Chart */}
-           <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                 <div>
-                    <h3 className="text-3xl font-black text-femac-900 uppercase tracking-tighter">Revenue <span className="text-femac-yellow">Trend</span> Registry</h3>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-2">Historical Growth Matrix (Academic Year 2026)</p>
-                 </div>
-                 <div className="flex bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
-                    <button className="px-6 py-2.5 rounded-xl bg-white text-femac-900 font-black text-[10px] uppercase tracking-widest shadow-md">Monthly View</button>
-                    <button className="px-6 py-2.5 rounded-xl text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-femac-900 transition-colors">Quarterly</button>
-                 </div>
-              </div>
-
-              <div className="h-[450px] w-full">
-                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={getTrendData()}>
-                       <defs>
-                          <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                             <stop offset="5%" stopColor="#102a43" stopOpacity={0.1}/>
-                             <stop offset="95%" stopColor="#102a43" stopOpacity={0}/>
-                          </linearGradient>
-                       </defs>
-                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
-                       <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 900, fill: '#94a3b8'}} />
-                       <Tooltip contentStyle={{borderRadius: '2rem', border: 'none', backgroundColor: '#102a43', color: '#fff', fontSize: '10px'}} />
-                       <Area type="monotone" dataKey="revenue" stroke="#102a43" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
-                       <Area type="monotone" dataKey="expenses" stroke="#facc15" strokeWidth={2} strokeDasharray="5 5" fill="transparent" />
-                       <Legend verticalAlign="top" align="right" wrapperStyle={{paddingBottom: '20px', fontSize: '10px', fontWeight: 'black', textTransform: 'uppercase'}} />
-                    </AreaChart>
-                 </ResponsiveContainer>
-              </div>
-           </div>
-
-           {/* Detailed Breakdown Tabs */}
-           <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm">
-              <div className="flex items-center space-x-6 mb-12 border-b border-slate-100 pb-8">
-                 <button onClick={() => setActiveGrowthTab('profit')} className={`flex items-center space-x-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeGrowthTab === 'profit' ? 'bg-femac-900 text-white shadow-xl' : 'text-slate-400 hover:text-femac-900'}`}>
-                    <Activity size={16} /> <span>Gross Profit Nodes</span>
-                 </button>
-                 <button onClick={() => setActiveGrowthTab('expenses')} className={`flex items-center space-x-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeGrowthTab === 'expenses' ? 'bg-femac-900 text-white shadow-xl' : 'text-slate-400 hover:text-femac-900'}`}>
-                    <CreditCard size={16} /> <span>Expense Breakdown</span>
-                 </button>
-                 <button onClick={() => setActiveGrowthTab('net')} className={`flex items-center space-x-3 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeGrowthTab === 'net' ? 'bg-femac-900 text-white shadow-xl' : 'text-slate-400 hover:text-femac-900'}`}>
-                    <Trophy size={16} /> <span>Net Profit Analysis</span>
-                 </button>
-              </div>
-
-              <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                 {activeGrowthTab === 'profit' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                       <div className="space-y-8">
-                          <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight">Institutional Revenue Streams</h4>
-                          <div className="space-y-4">
-                             {[
-                                { label: 'Tuition Fees (Primary)', value: growthData.current.totalRevenue * 0.45, color: 'bg-femac-900' },
-                                { label: 'Tuition Fees (Junior)', value: growthData.current.totalRevenue * 0.35, color: 'bg-femac-600' },
-                                { label: 'Tuition Fees (Senior)', value: growthData.current.totalRevenue * 0.15, color: 'bg-femac-400' },
-                                { label: 'Misc. Registry Payments', value: growthData.current.totalRevenue * 0.05, color: 'bg-femac-yellow' },
-                             ].map((item, i) => (
-                                <div key={i} className="flex justify-between items-end p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100">
-                                   <div>
-                                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{item.label}</p>
-                                      <div className="flex items-center space-x-2">
-                                         <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
-                                         <span className="font-black text-femac-900">K {item.value.toLocaleString()}</span>
-                                      </div>
-                                   </div>
-                                   <span className="text-[10px] font-black text-slate-300">{(item.value / growthData.current.totalRevenue * 100).toFixed(1)}%</span>
-                                </div>
-                             ))}
-                          </div>
-                       </div>
-                       <div className="bg-slate-900 rounded-[3rem] p-10 text-white flex flex-col justify-center relative overflow-hidden">
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-femac-yellow opacity-10 rounded-full blur-3xl"></div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-femac-yellow mb-4">Registry Insight</p>
-                          <h5 className="text-3xl font-black tracking-tighter leading-tight mb-6">Profitability node is currently optimized at <span className="text-femac-yellow">78.4%</span> across all division streams.</h5>
-                          <button className="w-fit bg-white/10 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-femac-900 transition-all border border-white/20">Download Detailed Report</button>
-                       </div>
-                    </div>
-                 )}
-
-                 {activeGrowthTab === 'expenses' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                       <div className="space-y-8">
-                          <h4 className="text-2xl font-black text-femac-900 uppercase tracking-tight">Institutional Outflow Analysis</h4>
-                          <div className="space-y-4">
-                             {[
-                                { label: 'Payroll & Salaries', value: growthData.current.totalSalaries, icon: Users },
-                                { label: 'Operational Utilities', value: growthData.current.operationalCosts * 0.4, icon: Zap },
-                                { label: 'Academic Resources', value: growthData.current.operationalCosts * 0.3, icon: BookOpen },
-                                { label: 'Maintenance & Facilities', value: growthData.current.operationalCosts * 0.3, icon: Briefcase },
-                             ].map((item, i) => (
-                                <div key={i} className="flex justify-between items-center p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 group hover:border-femac-yellow transition-all">
-                                   <div className="flex items-center space-x-4">
-                                      <div className="p-3 bg-white rounded-xl shadow-sm text-femac-900 group-hover:bg-femac-900 group-hover:text-femac-yellow transition-all"><item.icon size={18} /></div>
-                                      <div>
-                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{item.label}</p>
-                                         <p className="font-black text-femac-900 text-lg">K {item.value.toLocaleString()}</p>
-                                      </div>
-                                   </div>
-                                   <div className="text-right">
-                                      <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">Outflow Node</span>
-                                   </div>
-                                </div>
-                             ))}
-                          </div>
-                       </div>
-                       <div className="bg-red-50 rounded-[3rem] p-10 border border-red-100 flex flex-col justify-center">
-                          <h5 className="text-2xl font-black text-red-900 uppercase tracking-tight mb-4">Cost Mitigation Node</h5>
-                          <p className="text-sm font-bold text-slate-500 leading-relaxed uppercase tracking-widest mb-8">Operational costs are being tracked against institutional growth metrics. Current payroll efficiency is at 94.2% based on staff-student ratio benchmarks.</p>
-                          <div className="flex items-center space-x-3 text-red-600 font-black uppercase text-[10px] tracking-widest bg-white w-fit px-6 py-3 rounded-xl shadow-sm border border-red-100">
-                             <AlertCircle size={14} /> <span>Audited Registry Verified</span>
-                          </div>
-                       </div>
-                    </div>
-                 )}
-
-                 {activeGrowthTab === 'net' && (
-                    <div className="flex flex-col md:flex-row gap-12 items-center">
-                       <div className="md:w-1/3 text-center md:text-left">
-                          <div className="w-20 h-20 bg-femac-yellow text-femac-900 rounded-[2rem] flex items-center justify-center mb-8 mx-auto md:mx-0 shadow-xl border-4 border-femac-900">
-                             <Trophy size={36} />
-                          </div>
-                          <h4 className="text-4xl font-black text-femac-900 tracking-tighter uppercase leading-none mb-4">Financial <span className="text-femac-yellow">Health</span> Index</h4>
-                          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-loose">Based on verified registry flow, FEMAC Academy shows a net positive retained growth of <span className="text-femac-900 font-black">22.5%</span> year-on-year.</p>
-                       </div>
-                       <div className="md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                          <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-xl flex flex-col justify-between h-[280px] relative overflow-hidden group">
-                             <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Registry Reserve</p>
-                                <h5 className="text-5xl font-black text-femac-900 tracking-tighter leading-none uppercase">Verified Flow</h5>
-                             </div>
-                             <div className="mt-8">
-                                <p className="text-4xl font-black text-green-600 tracking-tighter">K {(growthData.current.netProfit * 0.6).toLocaleString()}</p>
-                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-2">60% Of Net Retained</p>
-                             </div>
-                          </div>
-                          <div className="bg-femac-900 p-10 rounded-[3rem] shadow-xl text-white flex flex-col justify-between h-[280px] relative overflow-hidden">
-                             <div className="absolute top-0 right-0 w-24 h-24 bg-femac-yellow opacity-10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-                             <div>
-                                <p className="text-[10px] font-black text-femac-400 uppercase tracking-widest mb-2">Capital Expenditure</p>
-                                <h5 className="text-5xl font-black text-white tracking-tighter leading-none uppercase">Expansion Cap</h5>
-                             </div>
-                             <div className="mt-8">
-                                <p className="text-4xl font-black text-femac-yellow tracking-tighter">K {(growthData.current.netProfit * 0.4).toLocaleString()}</p>
-                                <p className="text-[9px] font-black text-femac-400 uppercase tracking-widest mt-2">40% Of Net Retained</p>
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-                 )}
-              </div>
-           </div>
-        </div>
-      )}
-
-      {activePage === 'messages' && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[750px] animate-in slide-in-from-right-4 duration-500">
-          <div className="lg:col-span-1 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-            <div className="p-8 border-b border-slate-50">
-               <h3 className="text-xl font-black text-femac-900 uppercase tracking-tight">Active Sessions</h3>
-               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Institutional Registry Comms</p>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-               {chatSessions.length === 0 ? (
-                 <div className="py-20 text-center text-slate-300 uppercase font-black text-[9px]">No Active Registry Chats</div>
-               ) : (
-                 chatSessions.map(sess => (
-                   <button 
-                     key={sess.id} 
-                     onClick={() => setActiveChatId(sess.id)}
-                     className={`w-full p-6 rounded-3xl text-left border-2 transition-all relative ${activeChatId === sess.id ? 'bg-femac-900 border-femac-900 shadow-xl' : 'bg-slate-50 border-slate-50 hover:border-femac-yellow'}`}
-                   >
-                     <div className="flex justify-between items-start mb-2">
-                        <p className={`text-[11px] font-black uppercase tracking-tight ${activeChatId === sess.id ? 'text-white' : 'text-femac-900'}`}>{sess.parentName}</p>
-                        {sess.status === 'REQUESTED' && <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)]"></div>}
-                     </div>
-                     <p className={`text-[9px] font-black uppercase tracking-widest mb-4 ${activeChatId === sess.id ? 'text-femac-400' : 'text-slate-400'}`}>{sess.parentId}</p>
-                     
-                     {sess.status === 'REQUESTED' ? (
-                        <div className="bg-red-50 text-red-600 p-3 rounded-xl border border-red-100 flex items-center justify-center animate-pulse">
-                           <Headset size={12} className="mr-2" />
-                           <span className="text-[8px] font-black uppercase tracking-widest">Escalation Node</span>
-                        </div>
-                     ) : sess.status === 'ACTIVE' ? (
-                        <div className="bg-green-50 text-green-600 p-3 rounded-xl border border-green-100 flex items-center justify-center">
-                           <Check size={12} className="mr-2" />
-                           <span className="text-[8px] font-black uppercase tracking-widest">Connected</span>
-                        </div>
-                     ) : (
-                        <div className="bg-blue-50 text-blue-600 p-3 rounded-xl border border-blue-100 flex items-center justify-center">
-                           <Bot size={12} className="mr-2" />
-                           <span className="text-[8px] font-black uppercase tracking-widest">AI Assisted</span>
-                        </div>
-                     )}
-                   </button>
-                 ))
-               )}
-            </div>
-          </div>
-
-          <div className="lg:col-span-3 bg-white rounded-[3.5rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden relative">
-            {activeChat ? (
-              <>
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-femac-900 text-white">
-                   <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-femac-yellow rounded-2xl flex items-center justify-center text-femac-900 shadow-xl">
-                        <UserLarge size={24} />
-                      </div>
-                      <div>
-                        <h4 className="text-xl font-black uppercase tracking-tight leading-none">{activeChat.parentName}</h4>
-                        <p className="text-[9px] font-black text-femac-400 uppercase tracking-widest mt-2">Node: {activeChat.parentId} • Status: {activeChat.status}</p>
-                      </div>
-                   </div>
-                   <div className="flex items-center space-x-3">
-                      {activeChat.status === 'REQUESTED' && (
-                        <button 
-                          onClick={() => handleAcceptChat(activeChat.id)}
-                          className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center animate-in zoom-in"
-                        >
-                          <Headset size={14} className="mr-2" /> Accept Request
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => handleCloseChat(activeChat.id)}
-                        className="bg-white/10 hover:bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border border-white/20 transition-all"
-                      >
-                        Close Registry Node
-                      </button>
-                   </div>
-                </div>
-
-                <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-10 space-y-6 custom-scrollbar bg-slate-50/30">
-                  {activeChat.messages.map(msg => (
-                    <div key={msg.id} className={`flex ${msg.senderRole === UserRole.EXECUTIVE_ACCOUNTS ? 'justify-end' : 'justify-start'}`}>
-                       <div className={`max-w-[70%] p-6 rounded-[2rem] text-sm font-bold shadow-sm ${msg.senderRole === UserRole.EXECUTIVE_ACCOUNTS ? 'bg-femac-900 text-white rounded-br-none' : 'bg-white text-slate-700 border border-slate-100 rounded-bl-none'}`}>
-                          {msg.text}
-                          <div className={`text-[8px] mt-3 font-black uppercase tracking-widest opacity-40 ${msg.senderRole === UserRole.EXECUTIVE_ACCOUNTS ? 'text-femac-200' : 'text-slate-400'}`}>
-                            {msg.isAi ? 'Registry AI' : msg.senderRole} • {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                          </div>
-                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {activeChat.status === 'ACTIVE' && (
-                  <form onSubmit={handleSendChatMessage} className="p-8 border-t border-slate-50 bg-white">
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        value={chatInput} 
-                        onChange={(e) => setChatInput(e.target.value)}
-                        placeholder="Type executive response..." 
-                        className="w-full pl-8 pr-16 py-6 bg-slate-50 border-2 border-slate-100 rounded-[2rem] outline-none font-bold text-slate-700 focus:border-femac-yellow" 
-                      />
-                      <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 bg-femac-900 text-femac-yellow p-4 rounded-2xl hover:bg-femac-yellow hover:text-femac-900 shadow-xl transition-all">
-                        <Send size={24} />
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-20 text-slate-300">
-                 <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100 shadow-inner">
-                   <MessageCircleQuestion size={48} className="opacity-20" />
-                 </div>
-                 <h4 className="text-3xl font-black text-femac-900/10 uppercase tracking-tighter">Select a Registry Node to Begin</h4>
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-4">Authorized Executive Comms Terminal</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Announcement Log Modal */}
-      {showAnnModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-femac-900/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-white rounded-[4rem] shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col overflow-hidden relative animate-in zoom-in duration-300">
-            <button onClick={() => setShowAnnModal(false)} className="absolute top-10 right-10 z-[110] text-slate-300 hover:text-femac-900 transition-colors p-2"><X size={32} /></button>
-            
-            <div className="flex-1 flex flex-col md:flex-row h-full">
-              {/* Left Side: Create Form */}
-              <div className="md:w-5/12 bg-slate-50 border-r border-slate-100 p-12 overflow-y-auto custom-scrollbar">
-                <div className="mb-12">
-                   <h4 className="text-3xl font-black text-femac-900 tracking-tighter uppercase leading-none">Broadcast <span className="text-femac-yellow">Registry</span></h4>
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-3">Add New Global Announcement</p>
-                </div>
-
-                <form onSubmit={handleCreateAnnouncement} className="space-y-8">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Title (Auto-Upper)</label>
-                    <input required type="text" value={newAnnTitle} onChange={(e) => setNewAnnTitle(e.target.value)} placeholder="e.g. 2026 ENROLLMENT NOW OPEN" className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-black text-xs text-femac-900 focus:border-femac-yellow transition-all" />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Primary Message</label>
-                    <textarea required rows={5} value={newAnnContent} onChange={(e) => setNewAnnContent(e.target.value)} placeholder="Enter details for the landing page notice board..." className="w-full p-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-bold text-xs text-slate-700 focus:border-femac-yellow transition-all leading-relaxed" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Asset Image URL (Optional)</label>
-                    <div className="relative">
-                      <ImageIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                      <input type="text" value={newAnnImage} onChange={(e) => setNewAnnImage(e.target.value)} placeholder="https://..." className="w-full pl-14 pr-5 py-5 bg-white border-2 border-slate-100 rounded-2xl outline-none font-bold text-xs text-slate-700 focus:border-femac-yellow transition-all" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">Broadcast Priority</label>
-                    <div className="flex bg-white p-1.5 rounded-2xl border-2 border-slate-100">
-                       <button type="button" onClick={() => setNewAnnPriority('NORMAL')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newAnnPriority === 'NORMAL' ? 'bg-femac-900 text-white shadow-lg' : 'text-slate-400 hover:text-femac-900'}`}>Normal Node</button>
-                       <button type="button" onClick={() => setNewAnnPriority('URGENT')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${newAnnPriority === 'URGENT' ? 'bg-red-600 text-white shadow-lg' : 'text-slate-400 hover:text-red-600'}`}>Urgent Alert</button>
-                    </div>
-                  </div>
-
-                  <button disabled={isSubmittingAnn} type="submit" className="w-full bg-femac-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.2em] text-sm shadow-2xl hover:bg-femac-yellow hover:text-femac-900 transition-all flex items-center justify-center space-x-3 active:scale-[0.98]">
-                    {isSubmittingAnn ? <Loader2 size={20} className="animate-spin" /> : <Megaphone size={20} />}
-                    <span>Publish to Registry</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* Right Side: Announcement Log */}
-              <div className="flex-1 p-16 overflow-y-auto custom-scrollbar bg-white">
-                <div className="mb-12 flex justify-between items-end">
-                   <div>
-                      <h5 className="text-4xl font-black text-femac-900 tracking-tighter uppercase mb-2">Notice Board <span className="text-femac-yellow">Log</span></h5>
-                      <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.4em]">Active Institutional Broadcasts</p>
-                   </div>
-                   <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Total Nodes</p>
-                      <p className="text-xl font-black text-femac-900">{announcements.length}</p>
-                   </div>
-                </div>
-
-                <div className="space-y-6">
-                   {announcements.length === 0 ? (
-                      <div className="py-24 text-center">
-                         <Megaphone size={64} className="text-slate-100 mx-auto mb-6" />
-                         <p className="text-slate-300 font-black uppercase tracking-widest text-xs">No active broadcasts in registry</p>
-                      </div>
-                   ) : (
-                      announcements.map(ann => (
-                         <div key={ann.id} className="group bg-white p-8 rounded-[2.5rem] border border-slate-100 hover:border-femac-yellow hover:shadow-xl transition-all flex items-start gap-8">
-                            <div className="w-24 h-24 rounded-3xl bg-slate-50 flex-shrink-0 overflow-hidden relative shadow-inner">
-                               {ann.imageUrl ? (
-                                  <img src={ann.imageUrl} className="w-full h-full object-cover" alt="" />
-                               ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-slate-200"><ImageIcon size={32}/></div>
-                               )}
-                               {ann.priority === 'URGENT' && (
-                                  <div className="absolute top-2 right-2 w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-sm"></div>
-                               )}
-                            </div>
-                            <div className="flex-1">
-                               <div className="flex justify-between items-start mb-2">
-                                  <div>
-                                     <div className="flex items-center space-x-3 mb-1">
-                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${ann.priority === 'URGENT' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-femac-50 text-femac-600 border-femac-100'}`}>{ann.priority} NODE</span>
-                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{ann.date}</span>
-                                     </div>
-                                     <h6 className="text-lg font-black text-femac-900 uppercase tracking-tight leading-none mb-4 group-hover:text-femac-yellow transition-colors">{ann.title}</h6>
-                                  </div>
-                                  <button onClick={() => handleDeleteAnnouncement(ann.id)} className="p-3 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={20} /></button>
-                               </div>
-                               <p className="text-xs font-bold text-slate-500 leading-relaxed line-clamp-2">{ann.content}</p>
-                            </div>
-                         </div>
-                      ))
-                   )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+                 <div className="flex-1 flex flex-col items-center justify-center text-center p-20 text-slate-300
